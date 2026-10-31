@@ -1,0 +1,7 @@
+src/protocol/
+src-tauri/target/
+node_modules/
+dist/
+bun.lock
+src-tauri/Cargo.lock
+src-tauri/gen/

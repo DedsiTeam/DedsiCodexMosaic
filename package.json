@@ -1,0 +1,40 @@
+{
+  "name": "dedsi-codex-mosaic",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "tauri": "bun scripts/tauri.mjs",
+    "desktop": "bun scripts/tauri.mjs dev",
+    "test": "vitest run",
+    "protocol:generate": "codex app-server generate-ts --out src/protocol",
+    "format": "prettier --write src scripts *.json *.ts *.html *.md",
+    "check": "bun run build && bun run test"
+  },
+  "dependencies": {
+    "@animate-ui/react": "2.4.1",
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-dialog": "^2",
+    "lucide-react": "^0.577.0",
+    "motion": "^14",
+    "radix-ui": "^1.4",
+    "react": "^19.2",
+    "react-dom": "^19.2",
+    "react-markdown": "^10",
+    "remark-gfm": "^4"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6",
+    "prettier": "^3.9.10",
+    "typescript": "^6",
+    "vite": "^8.3.5",
+    "vitest": "^4"
+  },
+  "packageManager": "bun@1.4.0"
+}
