@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Check,
   Paperclip,
   ArrowDown,
   ArrowUp,
@@ -13,6 +14,7 @@ import {
   GripVertical,
 } from "lucide-react";
 import { Collapsible } from "@animate-ui/react/primitives/radix-ui/collapsible";
+import { Select } from "@animate-ui/react/primitives/radix-ui/select";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -439,27 +441,38 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
             }}
           />
           <div className="composer-tools">
-            <select
-              aria-label={`模型 ${index + 1}`}
-              value={panel.model}
-              onChange={(e) => patchPanel(panel.id, { model: e.target.value })}
+            <Select.Root
+              value={panel.model || "__default__"}
+              onValueChange={(model) =>
+                patchPanel(panel.id, { model: model === "__default__" ? "" : model })
+              }
               disabled={session.busy}
             >
-              <option value="">{session.model || "默认模型"}</option>
-              {panel.model &&
-                !state.models.some((m) => m.model === panel.model) && (
-                  <option value={panel.model}>
-                    {panel.model === DEFAULT_MODEL
-                      ? "GPT-6.1-Sol"
-                      : panel.model}
-                  </option>
-                )}
-              {state.models.map((m) => (
-                <option key={m.id} value={m.model}>
-                  {m.displayName}
-                </option>
-              ))}
-            </select>
+              <Select.Trigger className="model-select-trigger" aria-label={`模型 ${index + 1}`}>
+                <Select.Value />
+                <Select.Icon asChild><ChevronDown size={12} /></Select.Icon>
+              </Select.Trigger>
+              <Select.Portal>
+                <Select.Content className="model-select-content" position="popper" side="top" align="start" sideOffset={8} collisionPadding={12}>
+                  <Select.ScrollUpButton className="model-select-scroll"><ChevronDown size={12} style={{ transform: "rotate(180deg)" }} /></Select.ScrollUpButton>
+                  <Select.Viewport className="model-select-viewport">
+                    {[
+                      { value: "__default__", label: session.model || "默认模型" },
+                      ...(panel.model && !state.models.some((m) => m.model === panel.model)
+                        ? [{ value: panel.model, label: panel.model === DEFAULT_MODEL ? "GPT-6.1-Sol" : panel.model }]
+                        : []),
+                      ...state.models.map((m) => ({ value: m.model, label: m.displayName })),
+                    ].map((model) => (
+                      <Select.Item key={model.value} value={model.value} className="model-select-item">
+                        <Select.ItemIndicator className="model-select-check"><Check size={12} /></Select.ItemIndicator>
+                        <Select.ItemText>{model.label}</Select.ItemText>
+                      </Select.Item>
+                    ))}
+                  </Select.Viewport>
+                  <Select.ScrollDownButton className="model-select-scroll"><ChevronDown size={12} /></Select.ScrollDownButton>
+                </Select.Content>
+              </Select.Portal>
+            </Select.Root>
             <div className="composer-actions">
               <IconButton
                 label="添加文件或图片"
