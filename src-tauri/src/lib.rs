@@ -1,6 +1,7 @@
 mod attachments;
 mod bridge;
 mod git;
+mod links;
 use bridge::Bridge;
 use serde_json::{json, Value};
 use std::sync::{atomic::Ordering, Arc};
@@ -14,13 +15,12 @@ struct AppState {
 async fn connect(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
-    executable: Option<String>,
 ) -> Result<Value, String> {
     let mut slot = state.bridge.lock().await;
     if let Some(current) = slot.as_ref().filter(|b| b.alive.load(Ordering::SeqCst)) {
         return Ok(json!({"executable":current.executable}));
     }
-    let bridge = Bridge::launch(app, executable).await?;
+    let bridge = Bridge::launch(app).await?;
     let result = json!({"executable":bridge.executable});
     *slot = Some(bridge);
     Ok(result)
@@ -31,6 +31,7 @@ async fn rpc(state: State<'_, AppState>, method: String, params: Value) -> Resul
         "thread/list",
         "thread/delete",
         "thread/read",
+        "thread/revert",
         "thread/start",
         "thread/resume",
         "thread/turns/list",
@@ -60,7 +61,7 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
-        .invoke_handler(tauri::generate_handler![connect, rpc, respond, git::git_info, git::create_worktree, git::delete_thread_with_worktree, attachments::save_attachment, attachments::read_attachment])
+        .invoke_handler(tauri::generate_handler![connect, rpc, respond, links::open_link, git::git_info, git::create_worktree, git::delete_thread_with_worktree, attachments::save_attachment, attachments::read_attachment])
         .build(tauri::generate_context!())
         .expect("无法启动 Codex Mosaic");
     app.run(|handle, event| {

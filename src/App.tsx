@@ -1,32 +1,23 @@
 import { version } from "../package.json";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
-  Settings,
   RefreshCw,
-  ChevronRight,
-  FolderOpen,
   Columns3,
   X,
-  Check,
   Terminal,
   MessageSquare,
 } from "lucide-react";
-import { Dialog } from "@animate-ui/react/primitives/radix-ui/dialog";
 import { Tooltip } from "@animate-ui/react/primitives/radix-ui/tooltip";
 import { motion, MotionConfig } from "motion/react";
-import { open } from "@tauri-apps/plugin-dialog";
-import { desktop } from "./lib/client";
 import {
   addPanel,
-  setWorkspace,
   sameWorkspace,
   belongsToWorkspace,
   boot,
   openThread,
-  persist,
   reconnect,
   refreshThreads,
   toggleSidebar,
@@ -34,11 +25,11 @@ import {
   useStore,
 } from "./lib/state";
 import { DeleteThreadButton } from "./components/DeleteThreadButton";
+import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { ChatPanel } from "./components/ChatPanel";
 import { IconButton, Logo } from "./components/ui";
 export default function App() {
   const state = useStore();
-  const [settings, setSettings] = useState(false);
   useEffect(() => {
     void boot().catch((e) =>
       update({ connection: "disconnected", error: String(e) }),
@@ -60,20 +51,6 @@ export default function App() {
   const running = visiblePanels.filter(
     (p) => p.threadId && state.sessions[p.threadId]?.busy,
   ).length;
-  const selectFolder = async () => {
-    try {
-      const path = await open({
-        directory: true,
-        multiple: false,
-        defaultPath: state.cwd || undefined,
-      });
-      if (typeof path === "string") {
-        setWorkspace(path);
-      }
-    } catch (e) {
-      update({ error: String(e) });
-    }
-  };
   return (
     <MotionConfig reducedMotion="user">
       <Tooltip.Provider delayDuration={250}>
@@ -94,6 +71,7 @@ export default function App() {
             </div>
             {state.collapsed ? (
               <div className="sidebar-rail">
+                <WorkspaceSwitcher collapsed />
                 <IconButton label="新建对话" onClick={addPanel}>
                   <Plus size={20} />
                 </IconButton>
@@ -103,34 +81,16 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div className="workspace-switch">
-                  <span className="workspace-icon">
-                    <FolderOpen size={18} />
-                  </span>
-                  <div>
-                    <strong>
-                      {state.cwd.split(/[\\/]/).filter(Boolean).pop() ||
-                        "本地工作区"}
-                    </strong>
-                    <small>LOCAL WORKSPACE</small>
-                  </div>
-                  <IconButton
-                    label="选择默认工作目录"
-                    disabled={!desktop}
-                    onClick={() => void selectFolder()}
-                  >
-                    <ChevronRight size={15} />
-                  </IconButton>
-                </div>
+                <WorkspaceSwitcher />
                 <div className="sidebar-actions">
-                  <button className="primary new-chat" onClick={addPanel}>
+                  <button className="new-chat" onClick={addPanel}>
                     <Plus size={17} />
                     新建对话
                   </button>
                 </div>
                 <div className="section-label">
                   <span>
-                    最近会话 <b>{workspaceThreads.length}</b>
+                    最近
                   </span>
                   <IconButton
                     label="刷新会话列表"
@@ -164,13 +124,6 @@ export default function App() {
                                 thread.preview.slice(0, 45) ||
                                 "未命名对话"}
                             </strong>
-                            <small>
-                              {thread.cwd
-                                .split(/[\\/]/)
-                                .filter(Boolean)
-                                .pop() || "本地"}
-                              {panel ? " · 已打开" : ""}
-                            </small>
                           </span>
                           {session?.approvals.length ? (
                             <span className="approval-count">!</span>
@@ -217,10 +170,6 @@ export default function App() {
             <div
               className={`sidebar-bottom ${state.collapsed ? "collapsed" : ""}`}
             >
-              <IconButton label="设置" onClick={() => setSettings(true)}>
-                <Settings size={18} />
-              </IconButton>
-              {!state.collapsed && <span>设置</span>}
               <IconButton
                 label={state.collapsed ? "展开侧栏" : "折叠侧栏"}
                 onClick={toggleSidebar}
@@ -286,85 +235,7 @@ export default function App() {
               )}
             </div>
           </main>
-          <Dialog.Root open={settings} onOpenChange={setSettings}>
-            <Dialog.Portal>
-              <Dialog.Overlay className="dialog-overlay" />
-              <Dialog.Content className="dialog-content">
-                <div className="dialog-heading">
-                  <Dialog.Title>工作台设置</Dialog.Title>
-                  <Dialog.Close asChild>
-                    <button className="icon-button" aria-label="关闭设置">
-                      <X size={18} />
-                    </button>
-                  </Dialog.Close>
-                </div>
-                <Dialog.Description>
-                  连接本机 Codex，配置新对话的默认工作目录。
-                </Dialog.Description>
-                <label>
-                  Codex 可执行文件
-                  <input
-                    placeholder="留空自动查找，或填写完整路径"
-                    value={state.executable}
-                    disabled={state.connection === "connected"}
-                    onChange={(e) => {
-                      update({ executable: e.target.value });
-                      persist();
-                    }}
-                  />
-                </label>
-                {state.executableResolved && (
-                  <small className="resolved-path">
-                    已连接：{state.executableResolved}
-                  </small>
-                )}
-                <p className="settings-help">
-                  使用本机 Codex 的登录状态。首次使用请在终端运行{" "}
-                  <code>codex login</code>。连接后修改可执行文件需要重启应用。
-                </p>
-                <label>
-                  默认工作目录
-                  <div className="input-with-button">
-                    <input
-                      placeholder="选择本地项目目录"
-                      key={state.cwd}
-                      defaultValue={state.cwd}
-                      onBlur={(e) => setWorkspace(e.target.value.trim())}
-                    />
-                    <button
-                      disabled={!desktop}
-                      onClick={() => void selectFolder()}
-                    >
-                      <FolderOpen size={16} />
-                    </button>
-                  </div>
-                </label>
-                <div className="theme-preview">
-                  <span>
-                    <i /> #9FED72
-                  </span>
-                  <span>黑色 / 白色</span>
-                  <Check size={16} />
-                </div>
-                <div className="settings-footer">
-                  <span>
-                    {desktop ? "本地进程 · stdio 连接" : "浏览器预览模式"}
-                  </span>
-                  <button
-                    className="primary"
-                    disabled={
-                      !desktop ||
-                      state.connection === "connected" ||
-                      state.connection === "connecting"
-                    }
-                    onClick={() => void reconnect()}
-                  >
-                    {state.connection === "connected" ? "已连接" : "连接 Codex"}
-                  </button>
-                </div>
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
+
         </div>
       </Tooltip.Provider>
     </MotionConfig>

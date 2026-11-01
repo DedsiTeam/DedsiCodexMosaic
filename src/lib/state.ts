@@ -38,6 +38,8 @@ export type Session = {
   items: Message[];
   activeTurn?: string;
   busy: boolean;
+  stopping?: boolean;
+  editing?: boolean;
   loading: boolean;
   error?: string;
   cursor?: string | null;
@@ -60,12 +62,13 @@ export type Panel = {
   draft: string;
   attachments?: Attachment[];
   model: string;
+  permissionMode?: "ask" | "auto" | "full";
 };
 type Saved = {
+  workspaces: string[];
   worktrees: Record<string, string>;
   panels: Panel[];
   collapsed: boolean;
-  executable: string;
   cwd: string;
 };
 export type State = Saved & {
@@ -130,9 +133,13 @@ const panels = Array.isArray(saved.panels)
   : [];
 let state: State = {
   panels,
+  workspaces: (Array.isArray(saved.workspaces)
+    ? [...saved.workspaces, saved.cwd]
+    : [saved.cwd, ...panels.map((p) => p.cwd)])
+    .filter((path): path is string => typeof path === "string" && !!path.trim())
+    .filter((path, index, paths) => paths.findIndex((other) => sameWorkspace(other, path)) === index),
   worktrees: saved.worktrees || {},
   collapsed: saved.collapsed === true,
-  executable: saved.executable || "",
   cwd: saved.cwd || "",
   threads: [],
   sessions: {},
@@ -151,6 +158,7 @@ export function belongsToWorkspace(path: string, cwd: string) {
   );
 }
 let listGeneration = 0;
+let refreshPending = false;
 const deletedThreads = new Set<string>();
 const deletingThreads = new Set<string>();
 const listeners = new Set<() => void>();
@@ -160,11 +168,11 @@ export function update(patch: Partial<State>) {
   for (const fn of listeners) fn();
 }
 export function persist() {
-  const { panels, collapsed, executable, cwd, worktrees } = state;
+  const { panels, collapsed, cwd, worktrees, workspaces } = state;
   try {
     localStorage.setItem(
       "mosaic.workspace.v1",
-      JSON.stringify({ panels, collapsed, executable, cwd, worktrees }),
+      JSON.stringify({ panels, collapsed, cwd, worktrees, workspaces }),
     );
   } catch {
     /* Storage may be unavailable. */
@@ -194,6 +202,11 @@ export function patchPanel(id: string, patch: Partial<Panel>) {
   persist();
 }
 export function setWorkspace(cwd: string) {
+  cwd = cwd.trim();
+  if (cwd && !state.workspaces.some((path) => sameWorkspace(path, cwd))) {
+    update({ workspaces: [...state.workspaces, cwd] });
+    persist();
+  }
   if (cwd === state.cwd) return;
   listGeneration++;
   const panels = state.panels.map((p) =>
@@ -218,6 +231,13 @@ export function setWorkspace(cwd: string) {
       )
         void loadThread(panel.threadId);
   }
+}
+// Removing a workspace only forgets the entry; files, sessions and drafts stay intact.
+export function removeWorkspace(cwd: string) {
+  const workspaces = state.workspaces.filter((path) => !sameWorkspace(path, cwd));
+  update({ workspaces });
+  if (sameWorkspace(state.cwd, cwd)) setWorkspace(workspaces[0] || "");
+  persist();
 }
 export function addPanel() {
   const panel = makePanel(state.cwd);
@@ -404,6 +424,7 @@ export function applyEvent(event: WireEvent) {
         approvals: [],
         error: p.turn.error?.message || undefined,
       });
+      void refreshThreads();
       break;
     case "item/started":
     case "item/completed":
@@ -468,7 +489,7 @@ export async function reconnect() {
   if (!desktop || state.connection === "connected") return;
   update({ connection: "connecting", error: undefined });
   try {
-    const info = await connect(state.executable);
+    const info = await connect();
     update({ connection: "connected", executableResolved: info.executable });
     await refreshThreads();
     void rpc<{ data: Model[] }>("model/list", { limit: 100 })
@@ -486,7 +507,12 @@ export async function refreshThreads(more = false) {
     update({ threads: [], threadCursor: null });
     return;
   }
-  if (state.connection !== "connected" || state.listing) return;
+  if (state.connection !== "connected") return;
+  if (state.listing) {
+    if (!more) refreshPending = true;
+    return;
+  }
+  refreshPending = false;
   const cwd = state.cwd;
   const generation = ++listGeneration;
   update({ listing: true });
@@ -516,7 +542,12 @@ export async function refreshThreads(more = false) {
     );
     const result = { data: results.flatMap((r) => r.data) };
     if (generation !== listGeneration) return;
-    const all = more ? [...state.threads, ...result.data] : result.data;
+    // The server index can lag behind thread/start. Keep open conversations
+    // visible until the list response contains their persisted metadata.
+    const retained = more ? state.threads : state.threads.filter((thread) =>
+      state.panels.some((panel) => panel.threadId === thread.id),
+    );
+    const all = [...retained, ...result.data];
     update({
       threads: [
         ...new Map(
@@ -536,7 +567,10 @@ export async function refreshThreads(more = false) {
   } catch (e) {
     if (generation === listGeneration) update({ error: errorText(e) });
   } finally {
-    if (generation === listGeneration) update({ listing: false });
+    if (generation === listGeneration) {
+      update({ listing: false });
+      if (refreshPending) void refreshThreads();
+    }
   }
 }
 const loading = new Set<string>();
@@ -625,6 +659,17 @@ export function openThread(thread: Thread) {
   void loadThread(thread.id);
 }
 const sending = new Set<string>();
+function permissions(mode: Panel["permissionMode"]) {
+  return {
+    approvalPolicy: mode === "full" ? "never" : "on-request",
+    approvalsReviewer: mode === "auto" ? "auto_review" : "user",
+    sandbox: mode === "full" ? "danger-full-access" : "workspace-write",
+    sandboxPolicy: mode === "full" ? { type: "dangerFullAccess" } : {
+      type: "workspaceWrite", writableRoots: [], networkAccess: false,
+      excludeTmpdirEnvVar: false, excludeSlashTmp: false,
+    },
+  };
+}
 export async function send(panelId: string) {
   const panel = state.panels.find((p) => p.id === panelId);
   if (
@@ -638,6 +683,7 @@ export async function send(panelId: string) {
     panel.threadId &&
     (state.sessions[panel.threadId]?.busy ||
       state.sessions[panel.threadId]?.loading ||
+      state.sessions[panel.threadId]?.editing ||
       !state.sessions[panel.threadId]?.writable)
   )
     return;
@@ -646,6 +692,7 @@ export async function send(panelId: string) {
     return;
   }
   sending.add(panelId);
+  const access = permissions(panel.permissionMode);
   let id = panel.threadId;
   try {
     if (!id) {
@@ -665,9 +712,9 @@ export async function send(panelId: string) {
       const r = await rpc<ThreadStartResponse>("thread/start", {
         cwd: executionCwd,
         model: panel.model || null,
-        approvalPolicy: "on-request",
-        approvalsReviewer: "user",
-        sandbox: "workspace-write",
+        approvalPolicy: access.approvalPolicy,
+        approvalsReviewer: access.approvalsReviewer,
+        sandbox: access.sandbox,
       });
       id = r.thread.id;
       patchPanel(panelId, {
@@ -677,6 +724,13 @@ export async function send(panelId: string) {
           panel.attachments?.[0]?.name ||
           "附件",
       });
+      if (belongsToWorkspace(r.thread.cwd, state.cwd)) {
+        const thread = {
+          ...r.thread,
+          preview: r.thread.preview || panel.draft.trim() || panel.attachments?.[0]?.name || "新对话",
+        };
+        update({ threads: [thread, ...state.threads.filter((item) => item.id !== thread.id)] });
+      }
       session(id, { loaded: true, writable: true, model: r.model });
     }
     session(id, { busy: true, error: undefined });
@@ -697,15 +751,9 @@ export async function send(panelId: string) {
         ),
       ],
       model: panel.model || null,
-      approvalPolicy: "on-request",
-      approvalsReviewer: "user",
-      sandboxPolicy: {
-        type: "workspaceWrite",
-        writableRoots: [],
-        networkAccess: false,
-        excludeTmpdirEnvVar: false,
-        excludeSlashTmp: false,
-      },
+      approvalPolicy: access.approvalPolicy,
+      approvalsReviewer: access.approvalsReviewer,
+      sandboxPolicy: access.sandboxPolicy,
     });
     // A very fast turn may already have completed before the request returns.
     if (state.sessions[id]?.busy) session(id, { activeTurn: result.turn.id });
@@ -730,12 +778,71 @@ export async function send(panelId: string) {
   }
 }
 export async function interrupt(id: string) {
-  const turnId = state.sessions[id]?.activeTurn;
-  if (!turnId) return;
+  if (state.sessions[id]?.stopping) return;
+  session(id, { stopping: true, error: undefined });
   try {
-    await rpc("turn/interrupt", { threadId: id, turnId });
+    await stopTurn(id);
   } catch (e) {
     session(id, { error: errorText(e) });
+  } finally {
+    session(id, { stopping: false });
+  }
+}
+
+async function stopTurn(id: string) {
+  if (!state.sessions[id]?.busy) return;
+  let turnId = state.sessions[id]?.activeTurn;
+  if (!turnId) {
+    const result = await rpc<ThreadTurnsListResponse>("thread/turns/list", {
+      threadId: id, limit: 1, itemsView: "full", sortDirection: "desc",
+    });
+    turnId = result.data.find((turn) => turn.status === "inProgress")?.id;
+  }
+  if (!state.sessions[id]?.busy) return;
+  if (!turnId) throw new Error("当前任务尚在启动，请稍后再暂停。");
+  await rpc("turn/interrupt", { threadId: id, turnId });
+  // Wait for the completion event before permitting history mutations.
+  if (!state.sessions[id]?.busy) return;
+  await new Promise<void>((resolve, reject) => {
+    const changed = () => {
+      if (!state.sessions[id]?.busy) {
+        clearTimeout(timer);
+        listeners.delete(changed);
+        resolve();
+      }
+    };
+    const timer = setTimeout(() => {
+      listeners.delete(changed);
+      reject(new Error("仍在等待任务暂停，请稍后重试。"));
+    }, 15000);
+    listeners.add(changed);
+    changed();
+  });
+}
+
+export async function recallMessage(panelId: string, message: Message) {
+  const panel = state.panels.find((p) => p.id === panelId);
+  const id = panel?.threadId;
+  if (!id || !state.sessions[id]?.writable || state.sessions[id]?.editing || sending.has(panelId)) return false;
+  session(id, { editing: true, error: undefined });
+  try {
+    await stopTurn(id);
+    await rpc("thread/revert", { threadId: id, beforeTurnId: message.turnId });
+    // Clear the old history so loadThread cannot merge withdrawn turns back in.
+    session(id, { items: [], cursor: null, busy: false, activeTurn: undefined, approvals: [] });
+    const current = state.panels.find((p) => p.id === panelId);
+    if (current) patchPanel(panelId, {
+      draft: [message.text, current.draft].filter(Boolean).join("\n\n"),
+      attachments: [...new Map([...(message.attachments || []), ...(current.attachments || [])].map((file) => [file.path, file])).values()],
+    });
+    await loadThread(id);
+    void refreshThreads();
+    return true;
+  } catch (e) {
+    session(id, { error: errorText(e) });
+    return false;
+  } finally {
+    session(id, { editing: false });
   }
 }
 export async function answer(

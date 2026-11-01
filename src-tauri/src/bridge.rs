@@ -26,20 +26,7 @@ pub struct Bridge {
     pub executable: String,
 }
 
-pub fn resolve_codex(custom: Option<String>) -> Result<PathBuf, String> {
-    if let Some(path) = custom.filter(|s| !s.trim().is_empty()) {
-        let p = PathBuf::from(path.trim());
-        if p.is_file() {
-            return Ok(p);
-        }
-        return Err("Codex 路径不存在，请选择可执行文件。".into());
-    }
-    if let Some(p) = std::env::var_os("CODEX_BIN")
-        .map(PathBuf::from)
-        .filter(|p| p.is_file())
-    {
-        return Ok(p);
-    }
+pub fn resolve_codex() -> Result<PathBuf, String> {
     let name = if cfg!(windows) { "codex.exe" } else { "codex" };
     if let Some(paths) = std::env::var_os("PATH") {
         for dir in std::env::split_paths(&paths) {
@@ -49,29 +36,70 @@ pub fn resolve_codex(custom: Option<String>) -> Result<PathBuf, String> {
             }
         }
     }
-    let mut paths = vec![
-        PathBuf::from("/opt/homebrew/bin/codex"),
-        PathBuf::from("/usr/local/bin/codex"),
-    ];
+    let mut paths = Vec::new();
     if cfg!(target_os = "macos") {
         paths.extend([
+            PathBuf::from("/opt/homebrew/bin/codex"),
+            PathBuf::from("/usr/local/bin/codex"),
             PathBuf::from("/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"),
             PathBuf::from("/Applications/Codex.app/Contents/Resources/codex"),
         ]);
     }
     if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
         paths.push(PathBuf::from(&home).join(".local/bin").join(name));
-        paths.push(PathBuf::from(home).join(".bun/bin").join(name));
+        paths.push(PathBuf::from(&home).join(".bun/bin").join(name));
+        #[cfg(target_os = "macos")]
+        {
+            paths.push(PathBuf::from(&home).join("Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"));
+            paths.push(PathBuf::from(&home).join("Applications/Codex.app/Contents/Resources/codex"));
+        }
     }
+    #[cfg(windows)]
+    {
+        // npm installs a .cmd wrapper; launch its native binary directly so
+        // stdio does not depend on cmd.exe or shell quoting.
+        let mut roots = Vec::new();
+        if let Some(path) = std::env::var_os("APPDATA") {
+            roots.push(PathBuf::from(path).join("npm/node_modules/@openai"));
+        }
+        if let Some(path) = std::env::var_os("LOCALAPPDATA") {
+            let local = PathBuf::from(path);
+            paths.push(local.join("Programs/Codex/resources/codex.exe"));
+            paths.push(local.join("Programs/Codex/codex.exe"));
+        }
+        if let Some(path) = std::env::var_os("PATH") {
+            roots.extend(std::env::split_paths(&path).map(|dir| dir.join("node_modules/@openai")));
+        }
+        for root in roots {
+            find_windows_codex(&root, 7, &mut paths);
+        }
+    }
+    #[cfg(target_os = "linux")]
+    paths.extend([PathBuf::from("/usr/local/bin/codex"), PathBuf::from("/usr/bin/codex")]);
     paths
         .into_iter()
         .find(|p| p.is_file())
-        .ok_or("未找到 Codex。请安装 Codex CLI，或在设置中指定可执行文件。".into())
+        .ok_or("未找到本机 Codex。请安装 Codex CLI 并确保 codex 位于 PATH 中，然后点击重新连接。".into())
+}
+
+#[cfg(windows)]
+fn find_windows_codex(root: &std::path::Path, depth: usize, paths: &mut Vec<PathBuf>) {
+    if depth == 0 { return; }
+    let Ok(entries) = std::fs::read_dir(root) else { return; };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Ok(kind) = entry.file_type() else { continue; };
+        if kind.is_file() && entry.file_name() == "codex.exe" {
+            paths.push(path);
+        } else if kind.is_dir() {
+            find_windows_codex(&path, depth - 1, paths);
+        }
+    }
 }
 
 impl Bridge {
-    pub async fn launch(app: AppHandle, custom: Option<String>) -> Result<Arc<Self>, String> {
-        let path = resolve_codex(custom)?;
+    pub async fn launch(app: AppHandle) -> Result<Arc<Self>, String> {
+        let path = resolve_codex()?;
         let mut command = Command::new(&path);
         command
             .args(["app-server", "--listen", "stdio://"])

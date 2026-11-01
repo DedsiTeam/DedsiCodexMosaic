@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   Paperclip,
   ArrowDown,
   ArrowUp,
   ChevronDown,
-  FolderOpen,
   MoreHorizontal,
   Square,
+  Undo2,
   Terminal,
   X,
   FileCode2,
@@ -15,16 +15,17 @@ import {
 } from "lucide-react";
 import { Collapsible } from "@animate-ui/react/primitives/radix-ui/collapsible";
 import { Select } from "@animate-ui/react/primitives/radix-ui/select";
-import ReactMarkdown from "react-markdown";
+import { Dialog } from "@animate-ui/react/primitives/radix-ui/dialog";
+import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { open } from "@tauri-apps/plugin-dialog";
-import { desktop, saveAttachment } from "../lib/client";
+import { desktop, saveAttachment, openLink } from "../lib/client";
 import {
   DEFAULT_MODEL,
   getState,
   closePanel,
   emptySession,
   interrupt,
+  recallMessage,
   loadThread,
   patchPanel,
   send,
@@ -35,14 +36,27 @@ import {
 } from "../lib/state";
 import { AttachmentView } from "./Attachments";
 import { GitEnvironment } from "./GitEnvironment";
+import { PermissionSelector } from "./PermissionSelector";
 import { Approval } from "./Approval";
 import { IconButton, Logo } from "./ui";
-function MessageView({ message }: { message: Message }) {
+function MessageView({ message, onRecall, disabled, cwd }: { cwd: string; message: Message; onRecall?: (message: Message) => void; disabled?: boolean }) {
+  const markdownComponents = useMemo<Components>(() => ({
+            a: ({ children, href }) => (
+              <a href={href} target="_blank" rel="noreferrer" onClick={(event) => {
+                if (!desktop) return;
+                event.preventDefault();
+                if (href) void openLink(href, cwd).catch((error) => update({ error: String(error) }));
+              }}>
+                {children}
+              </a>
+            ),
+            img: ({ alt }) => <span>[图片：{alt}]</span>,
+          }), [cwd]);
   if (message.kind === "userMessage")
     return (
       <div className="user-message">
-        <div className="message-label">你</div>
-        <div>{message.text}</div>
+        <div className="user-message-text">{message.text}</div>
+        {onRecall && <div className="message-actions"><IconButton label="撤回并编辑" disabled={disabled} onClick={() => onRecall(message)}><Undo2 size={13} /></IconButton></div>}
         {!!message.attachments?.length && (
           <div className="attachment-list">
             {message.attachments.map((file) => (
@@ -60,14 +74,8 @@ function MessageView({ message }: { message: Message }) {
         </div>
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
-          components={{
-            a: ({ children, href }) => (
-              <a href={href} target="_blank" rel="noreferrer">
-                {children}
-              </a>
-            ),
-            img: ({ alt }) => <span>[图片：{alt}]</span>,
-          }}
+          urlTransform={(url) => /^(file:\/\/|[a-zA-Z]:[\\/])/.test(url) ? url : defaultUrlTransform(url)}
+          components={markdownComponents}
         >
           {message.text}
         </ReactMarkdown>
@@ -93,12 +101,41 @@ function MessageView({ message }: { message: Message }) {
     </Collapsible.Root>
   );
 }
+function ConversationMessages({ items, onRecall, disabled, cwd }: { cwd: string; items: Message[]; onRecall: (message: Message) => void; disabled: boolean }) {
+  const groups: { id: string; process: boolean; messages: Message[] }[] = [];
+  for (const message of items) {
+    const process = !["userMessage", "agentMessage", "plan"].includes(message.kind);
+    const previous = groups[groups.length - 1];
+    if (process && previous?.process && previous.messages[0].turnId === message.turnId) {
+      previous.messages.push(message);
+    } else {
+      groups.push({ id: message.id, process, messages: [message] });
+    }
+  }
+  return groups.map((group) => group.process ? (
+    <Collapsible.Root key={group.id} className="process-group" defaultOpen={false}>
+      <Collapsible.Trigger className="tool-trigger process-trigger">
+        <MoreHorizontal size={14} />
+        <span>执行过程 · {group.messages.length} 项</span>
+        <ChevronDown size={13} />
+      </Collapsible.Trigger>
+      <Collapsible.Content>
+        <div className="process-details">
+          {group.messages.map((message) => <MessageView key={message.id} message={message} cwd={cwd} />)}
+        </div>
+      </Collapsible.Content>
+    </Collapsible.Root>
+  ) : <MessageView cwd={cwd} key={group.id} message={group.messages[0]} onRecall={onRecall} disabled={disabled} />);
+}
+
 export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
   const state = useStore();
   const session = panel.threadId
     ? state.sessions[panel.threadId] || emptySession()
     : emptySession();
   const fileInput = useRef<HTMLInputElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
+  const [recalling, setRecalling] = useState<Message | null>(null);
   const [uploading, setUploading] = useState(false);
   const [attachmentError, setAttachmentError] = useState("");
   const uploadLock = useRef(false);
@@ -157,39 +194,10 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
   const [atBottom, setAtBottom] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const active = state.active === panel.id;
-  const status = session.approvals.length
-    ? "等待确认"
-    : session.busy
-      ? "执行中"
-      : session.loading
-        ? "加载中"
-        : session.readOnlyReason
-          ? "只读"
-          : panel.threadId
-            ? "就绪"
-            : "新对话";
   useEffect(() => {
     if (follow.current)
       scroll.current?.scrollTo({ top: scroll.current.scrollHeight });
   }, [session.items, session.approvals, session.busy]);
-  const chooseFolder = async () => {
-    if (!desktop) return;
-    try {
-      const path = await open({
-        directory: true,
-        multiple: false,
-        defaultPath: panel.cwd || undefined,
-      });
-      if (typeof path === "string")
-        patchPanel(panel.id, {
-          cwd: path,
-          worktree: false,
-          baseBranch: undefined,
-        });
-    } catch (e) {
-      update({ error: String(e) });
-    }
-  };
   const submit = async () => {
     if (uploadLock.current || submitting) return;
     setSubmitting(true);
@@ -249,7 +257,9 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
       id={`panel-${panel.id}`}
       className={`chat-panel ${active ? "active" : ""}`}
       style={{ width: panel.width }}
-      onFocusCapture={() => update({ active: panel.id })}
+      onFocusCapture={() => {
+        if (!active) update({ active: panel.id });
+      }}
       onPointerDown={() => {
         if (!active) update({ active: panel.id });
       }}
@@ -257,9 +267,6 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
     >
       <header className="panel-header">
         <div className="panel-title-row">
-          <span className="panel-number">
-            {String(index + 1).padStart(2, "0")}
-          </span>
           <h2 title={panel.title}>{panel.title}</h2>
           <IconButton
             label="关闭此栏（不会停止任务）"
@@ -267,25 +274,6 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
           >
             <X size={16} />
           </IconButton>
-        </div>
-        <div className="panel-meta">
-          <span
-            className={`status ${session.busy || session.approvals.length ? "running" : ""}`}
-          >
-            <i />
-            {status}
-          </span>
-          <button
-            className="path-button"
-            title={panel.executionCwd || panel.cwd || "选择工作目录"}
-            disabled={
-              !!panel.threadId || !!panel.executionCwd || submitting || !desktop
-            }
-            onClick={() => void chooseFolder()}
-          >
-            <FolderOpen size={12} />
-            {panel.cwd.split(/[\\/]/).filter(Boolean).pop() || "选择工作目录"}
-          </button>
         </div>
       </header>
       <div
@@ -313,9 +301,7 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
         {session.loading && !session.items.length && (
           <p className="loading">正在读取会话…</p>
         )}
-        {session.items.map((message) => (
-          <MessageView key={message.id} message={message} />
-        ))}
+        <ConversationMessages cwd={panel.executionCwd || panel.cwd} items={session.items} onRecall={setRecalling} disabled={!session.writable || session.loading || !!session.editing || submitting || state.connection !== "connected"} />
         {session.approvals.map((event) => (
           <Approval key={event.id} event={event} threadId={panel.threadId!} />
         ))}
@@ -407,6 +393,8 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
             </p>
           )}
           <textarea
+            ref={composer}
+            disabled={!!session.editing}
             onPaste={(e) => {
               const files = Array.from(e.clipboardData.files);
               if (files.length) {
@@ -441,6 +429,18 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
             }}
           />
           <div className="composer-tools">
+            <div className="composer-actions composer-left">
+              <IconButton
+                label="添加文件或图片"
+                disabled={!desktop || uploading || submitting}
+                onClick={() => fileInput.current?.click()}
+              >
+                <Paperclip size={16} />
+              </IconButton>
+              <PermissionSelector panel={panel} disabled={session.busy || submitting || !!session.editing || session.loading} />
+              <GitEnvironment panel={panel} disabled={submitting || session.busy} />
+            </div>
+            <div className="composer-actions composer-right">
             <Select.Root
               value={panel.model || "__default__"}
               onValueChange={(model) =>
@@ -473,25 +473,14 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
                 </Select.Content>
               </Select.Portal>
             </Select.Root>
-            <div className="composer-actions">
-              <IconButton
-                label="添加文件或图片"
-                disabled={!desktop || uploading || submitting}
-                onClick={() => fileInput.current?.click()}
-              >
-                <Paperclip size={16} />
-              </IconButton>
-              <GitEnvironment
-                panel={panel}
-                disabled={submitting || session.busy}
-              />
               {session.busy ? (
                 <button
                   type="button"
                   className="send"
-                  aria-label="停止执行"
+                  aria-label={session.stopping ? "正在暂停" : "暂停执行"}
+                  title={session.stopping ? "正在暂停…" : "暂停执行"}
                   disabled={
-                    !session.activeTurn || state.connection !== "connected"
+                    !!session.stopping || !!session.editing || state.connection !== "connected"
                   }
                   onClick={() => void interrupt(panel.threadId!)}
                 >
@@ -506,6 +495,7 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
                     uploading ||
                     submitting ||
                     session.loading ||
+                    !!session.editing ||
                     (!!panel.threadId && !session.writable) ||
                     state.connection !== "connected"
                   }
@@ -517,6 +507,25 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
           </div>
         </form>
       </footer>
+      <Dialog.Root open={!!recalling} onOpenChange={(open) => { if (!open && !session.editing) setRecalling(null); }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="dialog-overlay" />
+          <Dialog.Content className="dialog-content">
+            <Dialog.Title>撤回并编辑这条消息？</Dialog.Title>
+            <Dialog.Description>将暂停当前执行，撤回这条消息及其后的对话记录，并将内容放回输入框。已修改的项目文件不会回滚。</Dialog.Description>
+            <div className="button-row">
+              <button disabled={!!session.editing} onClick={() => setRecalling(null)}>取消</button>
+              <button className="primary" disabled={!!session.editing} onClick={async () => {
+                if (recalling && await recallMessage(panel.id, recalling)) {
+                  setRecalling(null);
+                  requestAnimationFrame(() => composer.current?.focus());
+                }
+              }}>{session.editing ? "正在撤回…" : "撤回并编辑"}</button>
+            </div>
+            {session.error && <p role="alert" className="inline-error">{session.error}</p>}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
       <div
         className="resize-handle"
         role="separator"

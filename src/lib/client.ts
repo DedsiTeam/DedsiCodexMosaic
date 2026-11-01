@@ -1,6 +1,8 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 export const desktop = isTauri();
+export const openLink = (href: string, cwd: string) =>
+  invoke<void>("open_link", { href, cwd });
 export type WireEvent = {
   method: string;
   id?: string | number;
@@ -8,8 +10,8 @@ export type WireEvent = {
 };
 export const rpc = <T>(method: string, params: unknown = {}): Promise<T> =>
   invoke("rpc", { method, params });
-export const connect = (executable: string) =>
-  invoke<{ executable: string }>("connect", { executable: executable || null });
+export const connect = () =>
+  invoke<{ executable: string }>("connect");
 export const respond = (id: string | number, result: unknown) =>
   invoke("respond", { id, result, error: null });
 export const rejectUnsupported = (id: string | number) =>
