@@ -20,7 +20,7 @@ import {
 import { rpc } from "./client";
 beforeEach(() => {
   vi.mocked(rpc).mockReset();
-  update({ sessions: {}, threads: [], panels: [], connection: "connected" });
+  update({ sessions: {}, threads: [], panels: [], cwd: "", connection: "connected" });
 });
 describe("concurrent Codex event routing", () => {
   it("isolates interleaved message streams and turn completion", () => {
@@ -120,6 +120,20 @@ describe("history/live stream reconciliation", () => {
 
 describe("existing writer ownership", () => {
   it("loads history read-only when another client owns the thread and blocks sending", async () => {
+    update({
+      cwd: "/tmp",
+      panels: [
+        {
+          id: "panel",
+          threadId: "a",
+          title: "test",
+          cwd: "/tmp",
+          width: 440,
+          draft: "do not send",
+          model: "",
+        },
+      ],
+    });
     vi.mocked(rpc).mockRejectedValueOnce(
       new Error("thread a already has an active writer"),
     );
@@ -140,19 +154,6 @@ describe("existing writer ownership", () => {
       busy: false,
     });
     expect(getState().sessions.a.items[0].text).toBe("Existing history");
-    update({
-      panels: [
-        {
-          id: "panel",
-          threadId: "a",
-          title: "test",
-          cwd: "/tmp",
-          width: 440,
-          draft: "do not send",
-          model: "",
-        },
-      ],
-    });
     await send("panel");
     expect(rpc).toHaveBeenCalledTimes(2);
   });

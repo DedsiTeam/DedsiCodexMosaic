@@ -1,15 +1,11 @@
 import { spawn } from "node:child_process";
 import { homedir } from "node:os";
+import { createRequire } from "node:module";
 import { delimiter, join } from "node:path";
-const exe = join(
-  process.cwd(),
-  "node_modules",
-  ".bin",
-  process.platform === "win32" ? "tauri.cmd" : "tauri",
-);
-const child = spawn(exe, process.argv.slice(2), {
+const require = createRequire(import.meta.url);
+const cli = require.resolve("@tauri-apps/cli/tauri.js");
+const child = spawn(process.execPath, [cli, ...process.argv.slice(2)], {
   stdio: "inherit",
-  shell: process.platform === "win32",
   env: {
     ...process.env,
     PATH: `${join(homedir(), ".cargo", "bin")}${delimiter}${process.env.PATH ?? ""}`,

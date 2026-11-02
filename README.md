@@ -42,6 +42,25 @@ bun run test
 bun run tauri build
 ```
 
+### Windows 打包
+
+在 Windows 上安装 Bun 1.4+、Rust MSVC 工具链，以及 Visual Studio Build Tools 的“使用 C++ 的桌面开发”（包含 Windows SDK），然后执行：
+
+```powershell
+bun run build:windows
+# 或从任意目录调用脚本
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1
+```
+
+脚本安装锁定的前端依赖，执行前端与 Rust 测试，再构建 Release 版本和 NSIS 安装程序。首次构建需要联网下载依赖和 NSIS 工具；Windows 打包工具缓存在 `src-tauri/target/.tauri/`。仅需跳过测试时可传入 `-SkipTests`。
+
+输出：
+
+- `artifacts/windows/DedsiCodexMosaic_0.1.0_x64-setup.exe`：Windows x64 安装程序（文件名随版本和构建架构变化）。
+- `artifacts/windows/portable/DedsiCodexMosaic.exe`：可直接运行的程序，请保留同目录的 `licenses/`。
+
+直接运行版需要系统已有 WebView2 Runtime；安装程序会在缺失时下载并安装。使用 Codex 功能仍需本机安装 Codex CLI 并完成登录。当前构建未配置代码签名。
+
 macOS 本地调试包：
 
 ```sh
@@ -74,7 +93,7 @@ bun scripts/smoke-app-server.ts --turns
 
 ## 当前边界
 
-已在 macOS 验证；Windows/Linux 架构兼容，但尚未实机验证或签名发布。构建对应平台前需要安装 Tauri 的系统依赖。
+已在 macOS 验证；Windows x64 已通过前端测试、Rust 编译检查、Release/NSIS 打包和主窗口启动冒烟检查，尚未验证完整业务流程与安装/卸载流程。Linux 尚未实机验证。当前未签名发布，构建对应平台前需要安装 Tauri 的系统依赖。
 
 历史来源是本机 Codex App Server 可见的会话，不包含所有 ChatGPT 云端对话。如果已有客户端持有会话写锁，Mosaic 以只读方式加载历史；它不会抢占官方客户端。释放写锁后可以重新连接。
 
