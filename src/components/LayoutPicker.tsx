@@ -3,14 +3,13 @@ import { PanelsTopLeft } from "lucide-react";
 import { Popover } from "@animate-ui/react/primitives/radix-ui/popover";
 import { LAYOUTS, type Layout } from "../lib/layouts";
 
-export function LayoutPicker({ layout, available, onChange, onOpenChange }: {
+export function LayoutPicker({ layout, available, onChange }: {
   layout: Layout;
   available: Layout[];
   onChange: (layout: Layout) => void;
-  onOpenChange: (open: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const changeOpen = (value: boolean) => { setOpen(value); onOpenChange(value); };
+  const changeOpen = setOpen;
   return (
     <Popover.Root open={open} onOpenChange={changeOpen}>
       <Popover.Trigger className="fullscreen-button" aria-label="选择会话布局" title="会话布局">

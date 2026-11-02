@@ -36,7 +36,6 @@ export default function App() {
   const state = useStore();
   const [fullscreen, setFullscreen] = useState(false);
   const [layout, setLayout] = useState<Layout>("free");
-  const [layoutOpen, setLayoutOpen] = useState(false);
   const track = useRef<HTMLDivElement>(null);
   const [space, setSpace] = useState({ width: 0, height: 0 });
   useEffect(() => {
@@ -204,7 +203,7 @@ export default function App() {
             </div>
           </motion.aside>
           <main className="workspace">
-            <div className={`workspace-toolbar${layoutOpen ? " layout-open" : ""}`}>
+            <div className="workspace-toolbar">
               <div className="workspace-summary">
                 <span className="count-label">
                   {visiblePanels.length} 个对话
@@ -216,7 +215,7 @@ export default function App() {
                 )}
               </div>
               <div className="workspace-controls">
-                <LayoutPicker layout={effectiveLayout} available={available} onChange={selectLayout} onOpenChange={setLayoutOpen} />
+                <LayoutPicker layout={effectiveLayout} available={available} onChange={selectLayout} />
                 <FullscreenButton onFullscreenChange={setFullscreen} />
               </div>
             </div>

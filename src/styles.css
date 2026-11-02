@@ -428,31 +428,8 @@ button.primary,
   background: #fff;
   min-height: 0;
 }
-.app-shell.is-fullscreen > .sidebar,
-.app-shell.is-fullscreen .workspace-summary {
+.app-shell.is-fullscreen > .sidebar {
   display: none;
-}
-.app-shell.is-fullscreen .workspace-toolbar {
-  position: fixed;
-  top: 0;
-  right: 0;
-  z-index: 40;
-  height: auto;
-  margin: 0;
-  padding: 10px 14px;
-  border-radius: 0 0 0 12px;
-  background: #ffffffed;
-  box-shadow: 0 3px 12px #00000014;
-  opacity: 0;
-  transition: opacity 150ms;
-}
-.app-shell.is-fullscreen .workspace-toolbar:hover,
-.app-shell.is-fullscreen .workspace-toolbar:focus-within,
-.app-shell.is-fullscreen .workspace-toolbar.layout-open {
-  opacity: 1;
-}
-@media (hover: none) {
-  .app-shell.is-fullscreen .workspace-toolbar { opacity: 1; }
 }
 .app-shell.is-fullscreen .panel-track {
   padding: 12px;
