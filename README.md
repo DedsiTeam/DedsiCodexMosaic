@@ -62,7 +62,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1
 输出：
 
 - `artifacts/windows/DedsiCodexMosaic_0.0.2_x64-setup.exe`：Windows x64 安装程序（文件名随版本和构建架构变化）。
-- `artifacts/windows/portable/DedsiCodexMosaic.exe`：可直接运行的程序，请保留同目录的 `licenses/`。
 
 直接运行版需要系统已有 WebView2 Runtime；安装程序会在缺失时下载并安装。使用 Codex 功能仍需本机安装 Codex CLI 并完成登录。当前构建未配置代码签名。
 

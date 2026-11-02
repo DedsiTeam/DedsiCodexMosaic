@@ -51,15 +51,12 @@ try {
     }
 
     $outputDir = Join-Path $projectRoot 'artifacts/windows'
-    $portableDir = Join-Path $outputDir 'portable'
-    New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
-    Copy-Item -LiteralPath $exe -Destination $portableDir -Force
-    Copy-Item -LiteralPath (Join-Path $projectRoot 'licenses') -Destination $portableDir -Recurse -Force
+    New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
     foreach ($installer in $installers) {
         Copy-Item -LiteralPath $installer.FullName -Destination $outputDir -Force
     }
     Write-Host "Windows artifacts: $outputDir"
-    Get-ChildItem $outputDir -Filter '*.exe' -Recurse | ForEach-Object {
+    Get-ChildItem $outputDir -Filter '*-setup.exe' | ForEach-Object {
         # Use .NET directly: some Windows PowerShell environments do not expose Get-FileHash.
         $artifactPath = $_.FullName
         $artifactStream = [System.IO.File]::OpenRead($artifactPath)
