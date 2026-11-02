@@ -2,6 +2,7 @@ mod attachments;
 mod bridge;
 mod git;
 mod links;
+mod tray;
 use bridge::Bridge;
 use serde_json::{json, Value};
 use std::sync::{atomic::Ordering, Arc};
@@ -61,6 +62,18 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
+        .setup(tray::setup)
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    // Keep the window and its conversations alive in the tray.
+                    // Only intercept after hiding succeeds, so a failure cannot trap the user.
+                    if window.hide().is_ok() {
+                        api.prevent_close();
+                    }
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![connect, rpc, respond, links::open_link, git::git_info, git::create_worktree, git::delete_thread_with_worktree, attachments::save_attachment, attachments::read_attachment])
         .build(tauri::generate_context!())
         .expect("无法启动 Codex Mosaic");

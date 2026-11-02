@@ -27,6 +27,7 @@ import {
 import { DeleteThreadButton } from "./components/DeleteThreadButton";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { ChatPanel } from "./components/ChatPanel";
+import { FullscreenButton } from "./components/FullscreenButton";
 import { IconButton, Logo } from "./components/ui";
 export default function App() {
   const state = useStore();
@@ -198,6 +199,7 @@ export default function App() {
                   </span>
                 )}
               </div>
+              <FullscreenButton />
             </div>
             {state.connection === "preview" && (
               <div className="notice">

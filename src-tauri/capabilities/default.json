@@ -2,5 +2,5 @@
   "identifier": "default",
   "description": "Main window local desktop permissions",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:allow-open"]
+  "permissions": ["core:default", "core:window:allow-set-fullscreen", "dialog:allow-open"]
 }

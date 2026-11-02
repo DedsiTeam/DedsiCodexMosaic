@@ -44,7 +44,8 @@ try {
 
     $releaseDir = Join-Path $projectRoot 'src-tauri/target/release'
     $exe = Join-Path $releaseDir 'DedsiCodexMosaic.exe'
-    $installers = @(Get-ChildItem (Join-Path $releaseDir 'bundle/nsis') -Filter '*-setup.exe')
+    $version = (Get-Content (Join-Path $projectRoot 'package.json') -Raw | ConvertFrom-Json).version
+    $installers = @(Get-ChildItem (Join-Path $releaseDir 'bundle/nsis') -Filter "DedsiCodexMosaic_${version}_*-setup.exe")
     if (-not (Test-Path -LiteralPath $exe) -or $installers.Count -eq 0) {
         throw 'Build completed without the expected application or NSIS installer.'
     }

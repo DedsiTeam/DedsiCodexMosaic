@@ -356,6 +356,32 @@ button.primary,
   gap: 7px;
   font-size: 11px;
 }
+.fullscreen-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  color: #000;
+  font-size: 11px;
+  cursor: pointer;
+}
+.fullscreen-button:hover {
+  background: #9fed72;
+}
+.fullscreen-button:focus-visible {
+  outline: 2px solid #000;
+  outline-offset: 2px;
+}
+.fullscreen-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
 .view-label svg {
   color: #000;
 }

@@ -23,7 +23,7 @@ bun run dev
 
 ## 界面规则
 
-- 应用默认全屏启动。
+- 应用默认全屏启动，顶部右侧提供“退出全屏 / 进入全屏”按钮；F11 切换全屏，Esc 退出全屏（优先关闭正在交互的弹窗）。
 - 首次打开工作台为空，不预建对话栏；已有会话和草稿仍恢复，未使用的空白栏不恢复。
 - 左侧历史会话菜单可折叠，仅查询当前工作目录的会话；未选择目录时不读取会话。切换目录保留各目录的面板和草稿。
 - 右侧仅横向排列；超出窗口时横向滚动，不换行、不做网格。
@@ -33,6 +33,7 @@ bun run dev
 - 列宽、打开的会话、草稿、工作目录、侧栏状态保存在本机。
 - 会话列表支持永久删除：确认后由 Codex 物理删除历史文件、元数据及派生子会话；不会删除项目文件。
 - 关闭一栏不会停止该会话；停止按钮中断当前轮次。退出应用会结束本应用启动的 App Server 进程。
+- 关闭主窗口（包括 Alt+F4）仅隐藏到系统托盘，程序和正在进行的会话继续运行。左键点击托盘图标或右键选择“打开主窗口”恢复窗口；右键选择“退出程序”才会结束程序及其 App Server。
 
 ## 构建和检查
 
@@ -56,7 +57,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1
 
 输出：
 
-- `artifacts/windows/DedsiCodexMosaic_0.1.0_x64-setup.exe`：Windows x64 安装程序（文件名随版本和构建架构变化）。
+- `artifacts/windows/DedsiCodexMosaic_0.0.1_x64-setup.exe`：Windows x64 安装程序（文件名随版本和构建架构变化）。
 - `artifacts/windows/portable/DedsiCodexMosaic.exe`：可直接运行的程序，请保留同目录的 `licenses/`。
 
 直接运行版需要系统已有 WebView2 Runtime；安装程序会在缺失时下载并安装。使用 Codex 功能仍需本机安装 Codex CLI 并完成登录。当前构建未配置代码签名。
