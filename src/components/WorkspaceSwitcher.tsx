@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, ChevronRight, FolderOpen, Plus, Trash2 } from "lucide-react";
+import { Check, FolderOpen, Plus, Trash2 } from "lucide-react";
 import { Popover } from "@animate-ui/react/primitives/radix-ui/popover";
 import { open } from "@tauri-apps/plugin-dialog";
 import { desktop } from "../lib/client";
@@ -33,10 +33,9 @@ export function WorkspaceSwitcher({ collapsed = false }: { collapsed?: boolean }
         </Popover.Trigger>
       ) : (
         <div className="workspace-switch" title={state.cwd || "工作区列表"}>
-          <span className="workspace-icon"><FolderOpen size={18} /></span>
           <div><strong>{state.cwd ? nameOf(state.cwd) : "本地工作区"}</strong></div>
           <Popover.Trigger className="icon-button" aria-label="切换或管理工作区" title="工作区列表">
-            <ChevronRight size={15} />
+            <FolderOpen size={18} />
           </Popover.Trigger>
         </div>
       )}
