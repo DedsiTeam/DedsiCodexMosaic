@@ -4,8 +4,13 @@ use tauri::Manager;
 use tokio::process::Command;
 
 async fn git(cwd: &str, args: &[&str]) -> Result<String, String> {
-    let output = Command::new("git").arg("-C").arg(cwd).args(args)
-        .env("GIT_TERMINAL_PROMPT", "0").output().await
+    let mut command = Command::new("git");
+    command.arg("-C").arg(cwd).args(args)
+        .env("GIT_TERMINAL_PROMPT", "0");
+    // Background Git queries must not create a console in the Windows GUI app.
+    #[cfg(windows)]
+    command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    let output = command.output().await
         .map_err(|e| format!("无法运行 Git：{e}"))?;
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());

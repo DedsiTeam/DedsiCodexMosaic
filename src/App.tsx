@@ -73,9 +73,11 @@ export default function App() {
             {state.collapsed ? (
               <div className="sidebar-rail">
                 <WorkspaceSwitcher collapsed />
-                <IconButton label="新建对话" onClick={addPanel}>
-                  <Plus size={20} />
-                </IconButton>
+                {state.cwd && (
+                  <IconButton label="新建对话" onClick={addPanel}>
+                    <Plus size={20} />
+                  </IconButton>
+                )}
                 <IconButton label="打开会话列表" onClick={toggleSidebar}>
                   <MessageSquare size={18} />
                 </IconButton>
@@ -83,89 +85,81 @@ export default function App() {
             ) : (
               <>
                 <WorkspaceSwitcher />
-                <div className="sidebar-actions">
-                  <button className="new-chat" onClick={addPanel}>
-                    <Plus size={17} />
-                    新建对话
-                  </button>
-                </div>
-                <div className="section-label">
-                  <span>
-                    最近
-                  </span>
-                  <IconButton
-                    label="刷新会话列表"
-                    disabled={state.listing || state.connection !== "connected"}
-                    onClick={() => void refreshThreads()}
-                  >
-                    <RefreshCw
-                      size={13}
-                      className={state.listing ? "spin" : ""}
-                    />
-                  </IconButton>
-                </div>
-                <nav className="thread-list">
-                  {workspaceThreads.map((thread) => {
-                    const panel = state.panels.find(
-                      (p) => p.threadId === thread.id,
-                    );
-                    const session = state.sessions[thread.id];
-                    return (
-                      <div key={thread.id} className="thread-entry">
-                        <button
-                          className={`thread-row ${panel?.id === state.active ? "selected" : ""}`}
-                          onClick={() => openThread(thread)}
-                        >
-                          <span
-                            className={`thread-dot ${session?.busy ? "running" : ""}`}
-                          />
-                          <span>
-                            <strong>
-                              {thread.name ||
-                                thread.preview.slice(0, 45) ||
-                                "未命名对话"}
-                            </strong>
-                          </span>
-                          {session?.approvals.length ? (
-                            <span className="approval-count">!</span>
-                          ) : null}
-                        </button>
-                        <DeleteThreadButton
-                          threadId={thread.id}
-                          title={
-                            thread.name ||
-                            thread.preview.slice(0, 45) ||
-                            "未命名对话"
-                          }
-                          disabled={state.connection !== "connected"}
-                        />
-                      </div>
-                    );
-                  })}
-                  {!workspaceThreads.length && (
-                    <div className="sidebar-empty">
-                      <MessageSquare size={21} />
-                      <p>
-                        {state.connection === "preview"
-                          ? "在桌面应用中连接 Codex\n即可查看历史会话"
-                          : !state.cwd
-                            ? "请先选择工作目录"
-                            : state.listing
-                              ? "正在读取会话…"
-                              : "还没有历史会话"}
-                      </p>
-                    </div>
-                  )}
-                  {state.threadCursor && (
-                    <button
-                      className="load-more"
-                      disabled={state.listing}
-                      onClick={() => void refreshThreads(true)}
-                    >
-                      加载更多
+                {state.cwd && (
+                  <div className="sidebar-actions">
+                    <button className="new-chat" onClick={addPanel}>
+                      <Plus size={17} />
+                      新建对话
                     </button>
-                  )}
-                </nav>
+                  </div>
+                )}
+                {workspaceThreads.length > 0 && (
+                  <>
+                    <div className="section-label">
+                      <span>最近</span>
+                      <IconButton
+                        label="刷新会话列表"
+                        disabled={
+                          state.listing || state.connection !== "connected"
+                        }
+                        onClick={() => void refreshThreads()}
+                      >
+                        <RefreshCw
+                          size={13}
+                          className={state.listing ? "spin" : ""}
+                        />
+                      </IconButton>
+                    </div>
+                    <nav className="thread-list">
+                      {workspaceThreads.map((thread) => {
+                        const panel = state.panels.find(
+                          (p) => p.threadId === thread.id,
+                        );
+                        const session = state.sessions[thread.id];
+                        return (
+                          <div key={thread.id} className="thread-entry">
+                            <button
+                              className={`thread-row ${panel?.id === state.active ? "selected" : ""}`}
+                              onClick={() => openThread(thread)}
+                            >
+                              <span
+                                className={`thread-dot ${session?.busy ? "running" : ""}`}
+                              />
+                              <span>
+                                <strong>
+                                  {thread.name ||
+                                    thread.preview.slice(0, 45) ||
+                                    "未命名对话"}
+                                </strong>
+                              </span>
+                              {session?.approvals.length ? (
+                                <span className="approval-count">!</span>
+                              ) : null}
+                            </button>
+                            <DeleteThreadButton
+                              threadId={thread.id}
+                              title={
+                                thread.name ||
+                                thread.preview.slice(0, 45) ||
+                                "未命名对话"
+                              }
+                              disabled={state.connection !== "connected"}
+                            />
+                          </div>
+                        );
+                      })}
+                      {state.threadCursor && (
+                        <button
+                          className="load-more"
+                          disabled={state.listing}
+                          onClick={() => void refreshThreads(true)}
+                        >
+                          加载更多
+                        </button>
+                      )}
+                    </nav>
+                  </>
+                )}
               </>
             )}
             <div
@@ -231,13 +225,16 @@ export default function App() {
               {visiblePanels.length === 0 && (
                 <div className="workspace-empty">
                   <MessageSquare size={28} aria-hidden="true" />
-                  <h2>还没有打开的对话</h2>
-                  <p>从左侧新建对话，或选择一个历史会话。</p>
+                  <h2>{state.cwd ? "还没有打开的对话" : "请先选择项目"}</h2>
+                  <p>
+                    {state.cwd
+                      ? "从左侧新建对话，或选择一个历史会话。"
+                      : "从左侧选择项目后，即可新建对话或查看历史会话。"}
+                  </p>
                 </div>
               )}
             </div>
           </main>
-
         </div>
       </Tooltip.Provider>
     </MotionConfig>

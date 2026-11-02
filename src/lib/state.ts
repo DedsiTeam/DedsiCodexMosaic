@@ -240,6 +240,7 @@ export function removeWorkspace(cwd: string) {
   persist();
 }
 export function addPanel() {
+  if (!state.cwd) return;
   const panel = makePanel(state.cwd);
   update({ panels: [...state.panels, panel], active: panel.id });
   persist();

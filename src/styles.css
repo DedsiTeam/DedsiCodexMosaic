@@ -18,6 +18,7 @@
   --line-strong: #b8b8b8;
   --bg: #fff;
   --fg: #000;
+  --header-height: 59px;
   font-size: 13px;
 }
 * {
@@ -153,7 +154,7 @@ button.primary,
   background: #fff;
 }
 .brand {
-  height: 91px;
+  height: var(--header-height);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -337,11 +338,12 @@ button.primary,
 }
 .workspace-toolbar {
   display: flex;
+  height: var(--header-height);
   justify-content: space-between;
   gap: 12px;
   align-items: center;
   margin: 0 27px;
-  padding: 12px 0 14px;
+  padding: 0;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }

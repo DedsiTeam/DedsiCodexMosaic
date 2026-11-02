@@ -5,7 +5,7 @@ import { desktop } from "../lib/client";
 import { update } from "../lib/state";
 
 export function FullscreenButton() {
-  const [fullscreen, setFullscreen] = useState(true);
+  const [fullscreen, setFullscreen] = useState(false);
   const [busy, setBusy] = useState(false);
   const changing = useRef(false);
   const reportError = (error: unknown) =>

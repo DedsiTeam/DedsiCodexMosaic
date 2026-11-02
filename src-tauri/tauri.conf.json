@@ -18,7 +18,7 @@
         "minWidth": 720,
         "minHeight": 580,
         "theme": "Light",
-        "fullscreen": true
+        "fullscreen": false
       }
     ],
     "security": {
