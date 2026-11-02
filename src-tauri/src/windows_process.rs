@@ -261,9 +261,15 @@ mod tests {
         .unwrap();
         let mut stdin = child.stdin.take().unwrap();
         let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+        let runtime_powershell = std::env::var_os("USERPROFILE").map(|home|
+            std::path::PathBuf::from(home).join(".cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/pwsh.exe"));
+        let powershell = runtime_powershell.filter(|path| path.is_file())
+            .map(|path| path.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "powershell.exe".to_string());
         let requests = [
             json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"mosaic_console_smoke","version":"0.1.0"}}}),
             json!({"id":2,"method":"command/exec","params":{"command":["cmd.exe","/d","/c","echo mosaic-console-ok"],"timeoutMs":10000}}),
+            json!({"id":3,"method":"command/exec","params":{"command":[powershell,"-NoProfile","-Command","git --version; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Write-Output mosaic-console-ok"],"timeoutMs":10000}}),
         ];
         for request in requests {
             stdin

@@ -23,6 +23,8 @@ bun run dev
 
 Windows 下 App Server 使用启动时即隐藏的控制台，让普通命令子进程继承，避免执行命令时终端窗口闪现。更新程序后，请从系统托盘选择“退出程序”再启动新版，确保旧 App Server 已退出；只关闭主窗口不会重启服务。显式要求新建窗口的外部程序仍由该程序自行控制。
 
+Windows 建议使用 Codex CLI 0.166.0 或更新版本。本机验证中，0.162.1 在沙箱准备阶段出现 `setup refresh had errors` / `node_repl.exe` 文件占用错误；升级至 0.166.0 后，cmd、运行时 PowerShell 和 Git 冒烟测试通过。Mosaic 的版本与本机 Codex CLI 版本独立，更新 Mosaic 安装包不会自动升级 CLI。
+
 ## 界面规则
 
 - 应用默认以普通窗口启动，顶部右侧提供“退出全屏 / 进入全屏”按钮；F11 切换全屏，Esc 退出全屏（优先关闭正在交互的弹窗）。
