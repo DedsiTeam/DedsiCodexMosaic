@@ -43,6 +43,7 @@ async fn rpc(state: State<'_, AppState>, method: String, params: Value) -> Resul
         "turn/interrupt",
         "model/list",
         "account/read",
+        "account/rateLimits/read",
     ];
     if !ALLOWED.contains(&method.as_str()) {
         return Err("不支持的请求".into());

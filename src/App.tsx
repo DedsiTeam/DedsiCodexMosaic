@@ -25,6 +25,7 @@ import {
   MIN_PANEL_WIDTH,
 } from "./lib/state";
 import { DeleteThreadButton } from "./components/DeleteThreadButton";
+import { UsagePopover } from "./components/UsagePopover";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { ChatPanel } from "./components/ChatPanel";
 import { FullscreenButton } from "./components/FullscreenButton";
@@ -190,6 +191,7 @@ export default function App() {
             <div
               className={`sidebar-bottom ${state.collapsed ? "collapsed" : ""}`}
             >
+              <UsagePopover />
               <IconButton
                 label={state.collapsed ? "展开侧栏" : "折叠侧栏"}
                 onClick={toggleSidebar}
