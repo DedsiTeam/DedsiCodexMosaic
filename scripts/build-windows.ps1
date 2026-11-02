@@ -60,7 +60,20 @@ try {
     }
     Write-Host "Windows artifacts: $outputDir"
     Get-ChildItem $outputDir -Filter '*.exe' -Recurse | ForEach-Object {
-        Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256
+        # Use .NET directly: some Windows PowerShell environments do not expose Get-FileHash.
+        $artifactPath = $_.FullName
+        $artifactStream = [System.IO.File]::OpenRead($artifactPath)
+        $artifactHasher = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            [PSCustomObject]@{
+                Algorithm = 'SHA256'
+                Hash = [System.BitConverter]::ToString($artifactHasher.ComputeHash($artifactStream)).Replace('-', '')
+                Path = $artifactPath
+            }
+        } finally {
+            $artifactStream.Dispose()
+            $artifactHasher.Dispose()
+        }
     }
 } finally {
     Pop-Location

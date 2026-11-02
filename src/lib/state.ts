@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { applyPanelOrder } from "./panelOrder";
 import type { Thread } from "../protocol/v2/Thread";
 import type { Model } from "../protocol/v2/Model";
 import type { ThreadItem } from "../protocol/v2/ThreadItem";
@@ -18,6 +19,7 @@ import {
   rpc,
   type WireEvent,
 } from "./client";
+export const MIN_PANEL_WIDTH = 400;
 export type Attachment = {
   id: string;
   name: string;
@@ -119,14 +121,13 @@ const panels = Array.isArray(saved.panels)
         (p) =>
           p &&
           typeof p.id === "string" &&
-          typeof p.draft === "string" &&
-          (p.threadId || p.draft.trim() || p.attachments?.length),
+          typeof p.draft === "string",
       )
       .map((p) => ({
         ...p,
         model: p.model || (!p.threadId ? DEFAULT_MODEL : ""),
         width: Math.max(
-          280,
+          MIN_PANEL_WIDTH,
           Number.isFinite(Number(p.width)) ? Number(p.width) || 440 : 440,
         ),
       }))
@@ -199,6 +200,14 @@ export function patchPanel(id: string, patch: Partial<Panel>) {
   update({
     panels: state.panels.map((p) => (p.id === id ? { ...p, ...patch } : p)),
   });
+  persist();
+}
+export function reorderPanels(ids: string[]) {
+  const allowed = state.panels.filter((panel) => sameWorkspace(panel.cwd, state.cwd));
+  const allowedIds = new Set(allowed.map((panel) => panel.id));
+  const valid = ids.filter((id) => allowedIds.has(id));
+  if (new Set(valid).size !== allowed.length) return;
+  update({ panels: applyPanelOrder(state.panels, valid) });
   persist();
 }
 export function setWorkspace(cwd: string) {

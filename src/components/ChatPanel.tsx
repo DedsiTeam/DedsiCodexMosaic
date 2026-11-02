@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "motion/react";
 import {
   Check,
   Paperclip,
@@ -21,6 +22,7 @@ import remarkGfm from "remark-gfm";
 import { desktop, saveAttachment, openLink } from "../lib/client";
 import {
   DEFAULT_MODEL,
+  MIN_PANEL_WIDTH,
   getState,
   closePanel,
   emptySession,
@@ -128,8 +130,14 @@ function ConversationMessages({ items, onRecall, disabled, cwd }: { cwd: string;
   ) : <MessageView cwd={cwd} key={group.id} message={group.messages[0]} onRecall={onRecall} disabled={disabled} />);
 }
 
-export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
+export function ChatPanel({ panel, index, fullscreen = false, tiled = false, hidden = false, order = 0, sorting = false, onSortStart }: { panel: Panel; index: number; fullscreen?: boolean; tiled?: boolean; hidden?: boolean; order?: number; sorting?: boolean; onSortStart?: (event: React.PointerEvent<HTMLElement>, id: string, title: string) => void }) {
   const state = useStore();
+  const [fullscreenWidth, setFullscreenWidth] = useState(660);
+  const panelWidth = Math.max(MIN_PANEL_WIDTH, fullscreen ? fullscreenWidth : panel.width);
+  const setPanelWidth = (width: number) => {
+    if (fullscreen) setFullscreenWidth(width);
+    else patchPanel(panel.id, { width });
+  };
   const session = panel.threadId
     ? state.sessions[panel.threadId] || emptySession()
     : emptySession();
@@ -195,9 +203,9 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
   const [submitting, setSubmitting] = useState(false);
   const active = state.active === panel.id;
   useEffect(() => {
-    if (follow.current)
+    if (!hidden && follow.current)
       scroll.current?.scrollTo({ top: scroll.current.scrollHeight });
-  }, [session.items, session.approvals, session.busy]);
+  }, [session.items, session.approvals, session.busy, hidden]);
   const submit = async () => {
     if (uploadLock.current || submitting) return;
     setSubmitting(true);
@@ -213,7 +221,7 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
     e.preventDefault();
     e.stopPropagation();
     const start = e.clientX;
-    const width = panel.width;
+    const width = panelWidth;
     const target = e.currentTarget;
     const track = target.closest(".panel-track");
     const initialScroll = track?.scrollLeft || 0;
@@ -224,9 +232,8 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
     target.dataset.resizing = "true";
     target.setPointerCapture(e.pointerId);
     const move = (ev: PointerEvent) =>
-      patchPanel(panel.id, {
-        width: Math.max(
-          280,
+      setPanelWidth(Math.max(
+          MIN_PANEL_WIDTH,
           Math.round(
             width +
               ev.clientX -
@@ -234,8 +241,7 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
               (track?.scrollLeft || 0) -
               initialScroll,
           ),
-        ),
-      });
+        ));
     const end = () => {
       document.body.style.cursor = previousCursor;
       document.body.style.userSelect = previousSelection;
@@ -253,10 +259,13 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
     target.addEventListener("lostpointercapture", end);
   };
   return (
-    <article
+    <motion.article
+      layout="position"
+      transition={{ layout: { type: "spring", stiffness: 420, damping: 38 } }}
       id={`panel-${panel.id}`}
-      className={`chat-panel ${active ? "active" : ""}`}
-      style={{ width: panel.width }}
+      className={`chat-panel ${active ? "active" : ""}${sorting ? " sorting-source" : ""}`}
+      style={{ width: tiled ? undefined : panelWidth, order }}
+      hidden={hidden}
       onFocusCapture={() => {
         if (!active) update({ active: panel.id });
       }}
@@ -265,8 +274,9 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
       }}
       aria-label={`对话栏 ${index + 1}`}
     >
-      <header className="panel-header">
+      <header className="panel-header panel-sort-header" onPointerDown={(event) => onSortStart?.(event, panel.id, panel.title)} title="拖动标题栏调整顺序，Esc 取消">
         <div className="panel-title-row">
+          <GripVertical className="panel-sort-grip" size={14} aria-hidden="true" />
           <h2 title={panel.title}>{panel.title}</h2>
           <IconButton
             label="关闭此栏（不会停止任务）"
@@ -526,31 +536,29 @@ export function ChatPanel({ panel, index }: { panel: Panel; index: number }) {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-      <div
+      {!tiled && <div
         className="resize-handle"
         role="separator"
         aria-label="调整列宽"
         aria-orientation="vertical"
-        aria-valuenow={panel.width}
-        aria-valuemin={280}
+        aria-valuenow={panelWidth}
+        aria-valuemin={MIN_PANEL_WIDTH}
         title="左右拖动调整宽度，双击恢复默认宽度"
         tabIndex={0}
         onPointerDown={resize}
-        onDoubleClick={() => patchPanel(panel.id, { width: 440 })}
+        onDoubleClick={() => setPanelWidth(fullscreen ? 660 : 440)}
         onKeyDown={(e) => {
           if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
             e.preventDefault();
-            patchPanel(panel.id, {
-              width: Math.max(
-                280,
-                panel.width + (e.key === "ArrowRight" ? 20 : -20),
-              ),
-            });
+            setPanelWidth(Math.max(
+                MIN_PANEL_WIDTH,
+                panelWidth + (e.key === "ArrowRight" ? 20 : -20),
+              ));
           }
         }}
       >
         <GripVertical size={12} />
-      </div>
-    </article>
+      </div>}
+    </motion.article>
   );
 }

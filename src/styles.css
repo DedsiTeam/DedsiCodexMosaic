@@ -344,7 +344,6 @@ button.primary,
   align-items: center;
   margin: 0 27px;
   padding: 0;
-  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
 .workspace-toolbar > div {
@@ -352,20 +351,14 @@ button.primary,
   align-items: center;
   gap: 15px;
 }
-.view-label {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11px;
-}
 .fullscreen-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
   flex-shrink: 0;
-  min-height: 32px;
-  padding: 6px 10px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   border: 1px solid var(--line);
   border-radius: 5px;
   background: #fff;
@@ -384,13 +377,14 @@ button.primary,
   cursor: wait;
   opacity: 0.6;
 }
-.view-label svg {
-  color: #000;
-}
 .count-label {
   font-size: 10px;
   border-left: 1px solid var(--line);
   padding-left: 15px;
+}
+.count-label:first-child {
+  border-left: 0;
+  padding-left: 0;
 }
 .notice {
   display: flex;
@@ -418,8 +412,9 @@ button.primary,
   min-height: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  gap: 14px;
+  gap: 24px;
   padding: 20px 27px 14px;
+  background: #f2f3f5;
   align-items: stretch;
   overscroll-behavior-x: contain;
 }
@@ -433,8 +428,44 @@ button.primary,
   background: #fff;
   min-height: 0;
 }
+.app-shell.is-fullscreen > .sidebar,
+.app-shell.is-fullscreen .workspace-summary {
+  display: none;
+}
+.app-shell.is-fullscreen .workspace-toolbar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 40;
+  height: auto;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 0 0 0 12px;
+  background: #ffffffed;
+  box-shadow: 0 3px 12px #00000014;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+.app-shell.is-fullscreen .workspace-toolbar:hover,
+.app-shell.is-fullscreen .workspace-toolbar:focus-within,
+.app-shell.is-fullscreen .workspace-toolbar.layout-open {
+  opacity: 1;
+}
+@media (hover: none) {
+  .app-shell.is-fullscreen .workspace-toolbar { opacity: 1; }
+}
+.app-shell.is-fullscreen .panel-track {
+  padding: 12px;
+}
+.app-shell.is-fullscreen .chat-panel {
+  box-shadow: 0 2px 8px rgb(0 0 0 / 5%);
+}
+.app-shell.is-fullscreen .chat-panel.active {
+  box-shadow: 0 0 0 1px #65b83d, 0 2px 8px rgb(0 0 0 / 5%);
+}
 .chat-panel.active {
-  border-color: var(--accent);
+  border-color: #65b83d;
+  box-shadow: 0 0 0 1px #65b83d;
 }
 .panel-header {
   padding: 13px 15px 12px;
@@ -951,6 +982,7 @@ button.primary,
 
 .workspace-empty {
   flex: 1;
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1350,7 +1382,7 @@ select {
 .message-actions .icon-button:hover:not(:disabled) { background: #ededed; color: #000; }
 @media (hover: none) { .message-actions { opacity: 1; } }
 
-.composer-tools { flex-wrap: wrap; }
+.composer-tools { flex-wrap: nowrap; }
 .composer-tools .permission-trigger {
   display: flex; align-items: center; gap: 5px; border: 0;
   padding: 5px 7px; border-radius: 12px; background: #f5f5f5;
@@ -1375,5 +1407,63 @@ select {
 .permission-option:hover:not(:disabled) { background: #f5f5f5; }
 .permission-option[aria-checked="true"] > svg:last-child { color: var(--accent); }
 
-.composer-left { gap: 6px; }
+.composer-left { gap: 6px; flex-shrink: 0; }
 .composer-right { margin-left: auto; gap: 10px; min-width: 0; }
+.composer-right > .send,
+.model-select-trigger > svg { flex-shrink: 0; }
+
+.workspace-toolbar > .workspace-controls { gap: 8px; }
+.layout-popover {
+  z-index: 100;
+  width: 330px;
+  max-width: calc(100vw - 24px);
+  padding: 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 8px 28px #00000020;
+}
+.layout-heading { font-size: 12px; font-weight: 600; margin-bottom: 12px; }
+.layout-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.layout-option { padding: 8px; font-size: 10px; border-radius: 8px; }
+.layout-option:hover:not(:disabled) { background: #f2f7ef; }
+.layout-option[aria-pressed="true"] { border-color: #65b83d; background: #f2f7ef; }
+.layout-option:disabled { opacity: .35; cursor: not-allowed; }
+.layout-preview { display: grid; height: 48px; gap: 3px; margin-bottom: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.layout-preview i { background: #e9ece7; border: 1px solid #a4ada0; border-radius: 3px; }
+.layout-option[aria-pressed="true"] .layout-preview i { background: #d6edc9; border-color: #65b83d; }
+.preview-primary { grid-template-columns: 2fr 1fr; }
+.preview-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.preview-free { grid-template-columns: 1fr 1.2fr .4fr; overflow: hidden; }
+.preview-four { grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.panel-track:not(.layout-free) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(400px, 1fr));
+  grid-template-rows: none;
+  grid-auto-rows: var(--layout-row-height);
+  align-content: start;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.panel-track.layout-primary { grid-template-columns: minmax(400px, 2fr) minmax(400px, 1fr); }
+.panel-track.layout-three { grid-template-columns: repeat(3, minmax(400px, 1fr)); }
+.panel-track:not(.layout-free) > .chat-panel { min-width: 0; width: auto; }
+.chat-panel[hidden] { display: none; }
+.panel-track > .workspace-empty { grid-column: 1 / -1; grid-row: 1 / -1; }
+.panel-track.layout-four > .workspace-empty { grid-row: 1 / span 2; }
+.panel-sort-header { cursor: grab; touch-action: none; user-select: none; }
+.panel-sort-grip { flex-shrink: 0; color: #8a9386; opacity: 0; transition: opacity 150ms; }
+.panel-sort-header:hover .panel-sort-grip,
+.sorting-source .panel-sort-grip { opacity: 1; }
+.is-sorting .panel-sort-header { cursor: grabbing; }
+.chat-panel.sorting-source { opacity: .55; outline: 2px dashed #65b83d; outline-offset: 4px; }
+.panel-drag-preview {
+  position: fixed; z-index: 200; pointer-events: none; width: 224px;
+  padding: 12px 14px; border: 1px solid #65b83d; border-radius: 10px;
+  background: #fff; box-shadow: 0 12px 32px #00000026;
+  animation: drag-preview-in 130ms ease-out;
+}
+.panel-drag-preview strong { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+.panel-drag-preview span { display: block; margin-top: 6px; color: var(--text-secondary); font-size: 10px; }
+@keyframes drag-preview-in { from { opacity: 0; transform: scale(.95); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .panel-drag-preview { animation: none; } }

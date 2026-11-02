@@ -14,6 +14,7 @@ import {
   mergeHistory,
   loadThread,
   send,
+  reorderPanels,
   update,
   type Message,
 } from "./state";
@@ -156,5 +157,29 @@ describe("existing writer ownership", () => {
     expect(getState().sessions.a.items[0].text).toBe("Existing history");
     await send("panel");
     expect(rpc).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("saved panel ordering", () => {
+  it("persists workspace order while retaining active drafts and running sessions", () => {
+    const setItem = vi.fn();
+    vi.stubGlobal("localStorage", { setItem });
+    try {
+      const panel = (id: string, cwd: string) => ({ id, cwd, title: id, width: 440, draft: "draft-" + id, model: "" });
+      const panels = [panel("a", "/project"), panel("other", "/other"), panel("b", "/project")];
+      const sessions = { task: { ...emptySession(), busy: true } };
+      update({ cwd: "/project", panels, active: "a", sessions });
+      reorderPanels(["b", "a"]);
+      expect(getState().panels.map((p) => p.id)).toEqual(["b", "other", "a"]);
+      expect(getState().panels[2]).toBe(panels[0]);
+      expect(getState().active).toBe("a");
+      expect(getState().sessions).toBe(sessions);
+      const saved = JSON.parse(setItem.mock.calls[0][1]);
+      expect(saved.panels.map((p: { id: string }) => p.id)).toEqual(["b", "other", "a"]);
+      reorderPanels(["a"]);
+      expect(setItem).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

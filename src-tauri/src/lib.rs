@@ -3,6 +3,8 @@ mod bridge;
 mod git;
 mod links;
 mod tray;
+#[cfg(windows)]
+mod windows_process;
 use bridge::Bridge;
 use serde_json::{json, Value};
 use std::sync::{atomic::Ordering, Arc};

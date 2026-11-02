@@ -324,7 +324,7 @@ dependencies = [
 
 [[package]]
 name = "codex-mosaic"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "open",
  "serde",
@@ -334,6 +334,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tokio",
  "url",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

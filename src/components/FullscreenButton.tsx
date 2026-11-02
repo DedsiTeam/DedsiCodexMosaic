@@ -4,10 +4,17 @@ import { Maximize, Minimize } from "lucide-react";
 import { desktop } from "../lib/client";
 import { update } from "../lib/state";
 
-export function FullscreenButton() {
+export function FullscreenButton({
+  onFullscreenChange,
+}: {
+  onFullscreenChange: (fullscreen: boolean) => void;
+}) {
   const [fullscreen, setFullscreen] = useState(false);
   const [busy, setBusy] = useState(false);
   const changing = useRef(false);
+  useEffect(() => {
+    onFullscreenChange(fullscreen);
+  }, [fullscreen, onFullscreenChange]);
   const reportError = (error: unknown) =>
     update({ error: `无法切换全屏：${String(error)}` });
 
@@ -74,7 +81,6 @@ export function FullscreenButton() {
       aria-keyshortcuts="F11"
     >
       {fullscreen ? <Minimize size={15} /> : <Maximize size={15} />}
-      <span>{label}</span>
     </button>
   );
 }

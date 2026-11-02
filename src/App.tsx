@@ -1,11 +1,10 @@
 import { version } from "../package.json";
-import { useEffect } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
   RefreshCw,
-  Columns3,
   X,
   Terminal,
   MessageSquare,
@@ -23,14 +22,36 @@ import {
   toggleSidebar,
   update,
   useStore,
+  MIN_PANEL_WIDTH,
 } from "./lib/state";
 import { DeleteThreadButton } from "./components/DeleteThreadButton";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { ChatPanel } from "./components/ChatPanel";
 import { FullscreenButton } from "./components/FullscreenButton";
+import { LayoutPicker } from "./components/LayoutPicker";
+import { fitsLayout, layoutRowHeight, LAYOUTS, type Layout } from "./lib/layouts";
+import { usePanelSort } from "./components/usePanelSort";
 import { IconButton, Logo } from "./components/ui";
 export default function App() {
   const state = useStore();
+  const [fullscreen, setFullscreen] = useState(false);
+  const [layout, setLayout] = useState<Layout>("free");
+  const [layoutOpen, setLayoutOpen] = useState(false);
+  const track = useRef<HTMLDivElement>(null);
+  const [space, setSpace] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    if (!track.current) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const element = entry.target as HTMLElement;
+      setSpace({ width: entry.contentRect.width + element.offsetWidth - element.clientWidth, height: entry.contentRect.height });
+    });
+    observer.observe(track.current);
+    return () => observer.disconnect();
+  }, []);
+  // Reserve the 7px vertical scrollbar consistently, including before switching layouts.
+  const available = LAYOUTS.filter((item) => fitsLayout(item.id, space.width - 7, space.height, MIN_PANEL_WIDTH)).map((item) => item.id);
+  const effectiveLayout = available.includes(layout) ? layout : "free";
+  const slots = LAYOUTS.find((item) => item.id === effectiveLayout)!.slots;
   useEffect(() => {
     void boot().catch((e) =>
       update({ connection: "disconnected", error: String(e) }),
@@ -42,10 +63,15 @@ export default function App() {
       block: "nearest",
       inline: "nearest",
     });
-  }, [state.active]);
+  }, [state.active, effectiveLayout]);
   const visiblePanels = state.panels.filter(
     (p) => sameWorkspace(p.cwd, state.cwd) || (!p.cwd && !state.cwd),
   );
+  const sorting = usePanelSort(track, visiblePanels.map((panel) => panel.id), `${state.cwd}|${effectiveLayout}|${fullscreen}`);
+  const selectLayout = (next: Layout) => {
+    setLayout(next);
+    if (track.current) track.current.scrollTo({ left: 0, top: 0 });
+  };
   const workspaceThreads = state.threads.filter((t) =>
     belongsToWorkspace(t.cwd, state.cwd),
   );
@@ -55,7 +81,7 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <Tooltip.Provider delayDuration={250}>
-        <div className="app-shell">
+        <div className={`app-shell${fullscreen ? " is-fullscreen" : ""}`}>
           <motion.aside
             className="sidebar"
             animate={{ width: state.collapsed ? 66 : 248 }}
@@ -178,12 +204,8 @@ export default function App() {
             </div>
           </motion.aside>
           <main className="workspace">
-            <div className="workspace-toolbar">
-              <div>
-                <span className="view-label">
-                  <Columns3 size={15} />
-                  横向工作台
-                </span>
+            <div className={`workspace-toolbar${layoutOpen ? " layout-open" : ""}`}>
+              <div className="workspace-summary">
                 <span className="count-label">
                   {visiblePanels.length} 个对话
                 </span>
@@ -193,7 +215,10 @@ export default function App() {
                   </span>
                 )}
               </div>
-              <FullscreenButton />
+              <div className="workspace-controls">
+                <LayoutPicker layout={effectiveLayout} available={available} onChange={selectLayout} onOpenChange={setLayoutOpen} />
+                <FullscreenButton onFullscreenChange={setFullscreen} />
+              </div>
             </div>
             {state.connection === "preview" && (
               <div className="notice">
@@ -218,9 +243,12 @@ export default function App() {
                 </IconButton>
               </div>
             )}
-            <div className="panel-track" aria-label="横向对话工作区">
+            <motion.div layoutScroll ref={track} className={`panel-track layout-${effectiveLayout}${sorting.drag ? " is-sorting" : ""}`} aria-label="对话工作区"
+              style={{ "--layout-row-height": `${layoutRowHeight(effectiveLayout, space.height)}px` } as CSSProperties}>
               {visiblePanels.map((panel, index) => (
-                <ChatPanel key={panel.id} panel={panel} index={index} />
+                <ChatPanel key={panel.id} panel={panel} index={index} fullscreen={fullscreen}
+                  tiled={slots > 0} order={sorting.ordered.indexOf(panel.id)}
+                  sorting={sorting.drag?.id === panel.id} onSortStart={sorting.start} />
               ))}
               {visiblePanels.length === 0 && (
                 <div className="workspace-empty">
@@ -233,7 +261,12 @@ export default function App() {
                   </p>
                 </div>
               )}
-            </div>
+            </motion.div>
+            {sorting.drag && <div className="panel-drag-preview" role="status"
+              style={{ left: Math.min(sorting.drag.x + 16, window.innerWidth - 240), top: Math.min(sorting.drag.y + 16, window.innerHeight - 70) }}>
+              <strong>{sorting.drag.title}</strong>
+              <span>移至第 {sorting.drag.position} 位 · Esc 取消</span>
+            </div>}
           </main>
         </div>
       </Tooltip.Provider>

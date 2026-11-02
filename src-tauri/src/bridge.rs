@@ -2,7 +2,6 @@ use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     path::PathBuf,
-    process::Stdio,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex as StdMutex,
@@ -11,10 +10,17 @@ use std::{
 use tauri::{AppHandle, Emitter};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    process::{Child, ChildStdin, Command},
     sync::{oneshot, Mutex},
     time::{timeout, Duration},
 };
+#[cfg(not(windows))]
+use std::process::Stdio;
+#[cfg(not(windows))]
+use tokio::process::{Child, ChildStdin, Command};
+#[cfg(windows)]
+use crate::windows_process::HiddenConsoleChild as Child;
+#[cfg(windows)]
+use tokio::fs::File as ChildStdin;
 
 type Pending = HashMap<u64, oneshot::Sender<Result<Value, String>>>;
 pub struct Bridge {
@@ -100,18 +106,22 @@ fn find_windows_codex(root: &std::path::Path, depth: usize, paths: &mut Vec<Path
 impl Bridge {
     pub async fn launch(app: AppHandle) -> Result<Arc<Self>, String> {
         let path = resolve_codex()?;
-        let mut command = Command::new(&path);
-        command
-            .args(["app-server", "--listen", "stdio://"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .kill_on_drop(true);
         #[cfg(windows)]
-        command.creation_flags(0x08000000);
-        let mut child = command
-            .spawn()
+        let mut child = Child::spawn(&path, "app-server --listen stdio://")
             .map_err(|e| format!("无法启动 Codex：{e}"))?;
+        #[cfg(not(windows))]
+        let mut child = {
+            let mut command = Command::new(&path);
+            command
+                .args(["app-server", "--listen", "stdio://"])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .kill_on_drop(true);
+            command
+                .spawn()
+                .map_err(|e| format!("无法启动 Codex：{e}"))?
+        };
         let stdin = child.stdin.take().ok_or("无法打开 Codex 输入流")?;
         let stdout = child.stdout.take().ok_or("无法打开 Codex 输出流")?;
         let bridge = Arc::new(Self {
@@ -156,7 +166,7 @@ impl Bridge {
                 json!({"method":"mosaic/disconnected","params":{}}),
             );
         });
-        let initialized = bridge.request("initialize", json!({"clientInfo":{"name":"codex_mosaic","title":"DedsiCodexMosaic","version":"0.1.0"},"capabilities":{"experimentalApi":false}})).await;
+        let initialized = bridge.request("initialize", json!({"clientInfo":{"name":"codex_mosaic","title":"DedsiCodexMosaic","version":env!("CARGO_PKG_VERSION")},"capabilities":{"experimentalApi":false}})).await;
         if let Err(error) = initialized {
             bridge.stop();
             return Err(error);
