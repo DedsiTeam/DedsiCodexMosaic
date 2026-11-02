@@ -1,6 +1,7 @@
-export type Layout = "free" | "two" | "primary" | "three" | "four";
+export type Layout = "free" | "single" | "two" | "primary" | "three" | "four";
 export const LAYOUTS: { id: Layout; label: string; slots: number; columns: number; rows: number }[] = [
   { id: "free", label: "自由横排", slots: 0, columns: 1, rows: 1 },
+  { id: "single", label: "单栏铺满", slots: 1, columns: 1, rows: 1 },
   { id: "two", label: "双栏均分", slots: 2, columns: 2, rows: 1 },
   { id: "primary", label: "主次双栏", slots: 2, columns: 2, rows: 1 },
   { id: "three", label: "三栏均分", slots: 3, columns: 3, rows: 1 },

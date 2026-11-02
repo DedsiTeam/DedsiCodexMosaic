@@ -1409,6 +1409,7 @@ select {
 .layout-preview { display: grid; height: 48px; gap: 3px; margin-bottom: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .layout-preview i { background: #e9ece7; border: 1px solid #a4ada0; border-radius: 3px; }
 .layout-option[aria-pressed="true"] .layout-preview i { background: #d6edc9; border-color: #65b83d; }
+.preview-single { grid-template-columns: minmax(0, 1fr); }
 .preview-primary { grid-template-columns: 2fr 1fr; }
 .preview-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .preview-free { grid-template-columns: 1fr 1.2fr .4fr; overflow: hidden; }
@@ -1422,6 +1423,7 @@ select {
   overflow-y: auto;
   scrollbar-gutter: stable;
 }
+.panel-track.layout-single { grid-template-columns: minmax(400px, 1fr); }
 .panel-track.layout-primary { grid-template-columns: minmax(400px, 2fr) minmax(400px, 1fr); }
 .panel-track.layout-three { grid-template-columns: repeat(3, minmax(400px, 1fr)); }
 .panel-track:not(.layout-free) > .chat-panel { min-width: 0; width: auto; }
