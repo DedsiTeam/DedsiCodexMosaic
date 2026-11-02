@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
 import {
   Check,
+  Copy,
   Paperclip,
   ArrowDown,
   ArrowUp,
@@ -42,6 +43,20 @@ import { PermissionSelector } from "./PermissionSelector";
 import { Approval } from "./Approval";
 import { IconButton, Logo } from "./ui";
 function MessageView({ message, onRecall, disabled, cwd }: { cwd: string; message: Message; onRecall?: (message: Message) => void; disabled?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+  const copyMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(message.text);
+      setCopied(true);
+    } catch (error) {
+      update({ error: `复制失败：${String(error)}` });
+    }
+  };
   const markdownComponents = useMemo<Components>(() => ({
             a: ({ children, href }) => (
               <a href={href} target="_blank" rel="noreferrer" onClick={(event) => {
@@ -58,7 +73,12 @@ function MessageView({ message, onRecall, disabled, cwd }: { cwd: string; messag
     return (
       <div className="user-message">
         <div className="user-message-text">{message.text}</div>
-        {onRecall && <div className="message-actions"><IconButton label="撤回并编辑" disabled={disabled} onClick={() => onRecall(message)}><Undo2 size={13} /></IconButton></div>}
+        <div className="message-actions">
+          {onRecall && <IconButton label="撤回并编辑" disabled={disabled} onClick={() => onRecall(message)}><Undo2 size={13} /></IconButton>}
+          <IconButton label={copied ? "已复制" : "复制消息"} onClick={() => void copyMessage()}>
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+          </IconButton>
+        </div>
         {!!message.attachments?.length && (
           <div className="attachment-list">
             {message.attachments.map((file) => (
