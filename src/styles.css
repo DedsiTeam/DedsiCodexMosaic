@@ -1452,9 +1452,9 @@ select {
 .panel-track > .workspace-empty { grid-column: 1 / -1; grid-row: 1 / -1; }
 .panel-track.layout-four > .workspace-empty { grid-row: 1 / span 2; }
 .panel-sort-header { cursor: grab; touch-action: none; user-select: none; }
-.panel-sort-grip { flex-shrink: 0; color: #8a9386; opacity: 0; transition: opacity 150ms; }
-.panel-sort-header:hover .panel-sort-grip,
-.sorting-source .panel-sort-grip { opacity: 1; }
+.panel-sort-grip { flex-shrink: 0; color: #8a9386; }
+.panel-drag-handle { cursor: grab; }
+.is-sorting .panel-drag-handle { cursor: grabbing; }
 .is-sorting .panel-sort-header { cursor: grabbing; }
 .chat-panel.sorting-source { opacity: .55; outline: 2px dashed #65b83d; outline-offset: 4px; }
 .panel-drag-preview {

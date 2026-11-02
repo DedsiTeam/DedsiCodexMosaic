@@ -276,8 +276,10 @@ export function ChatPanel({ panel, index, fullscreen = false, tiled = false, hid
     >
       <header className="panel-header panel-sort-header" onPointerDown={(event) => onSortStart?.(event, panel.id, panel.title)} title="拖动标题栏调整顺序，Esc 取消">
         <div className="panel-title-row">
-          <GripVertical className="panel-sort-grip" size={14} aria-hidden="true" />
           <h2 title={panel.title}>{panel.title}</h2>
+          <IconButton label="拖动调整顺序" className="icon-button panel-drag-handle">
+            <GripVertical className="panel-sort-grip" size={14} aria-hidden="true" />
+          </IconButton>
           <IconButton
             label="关闭此栏（不会停止任务）"
             onClick={() => closePanel(panel.id)}
