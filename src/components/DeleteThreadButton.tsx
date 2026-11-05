@@ -55,7 +55,7 @@ export function DeleteThreadButton({
             <Dialog.Title>永久删除会话？</Dialog.Title>
             <Dialog.Description>
               将物理删除“{title}
-              ”及其派生子会话的历史文件和元数据，无法恢复。
+              ”及其派生子会话的历史文件、元数据和全部 ToDo 任务列表，无法恢复。
               {removeWorktree
                 ? "同时删除此工作树目录及对应分支，原项目目录保留。"
                 : "项目文件不会删除。"}

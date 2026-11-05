@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { applyPanelOrder } from "./panelOrder";
+import { bindTodoThread, deleteThreadTodos, disconnectTodos, pauseTodos, pauseThreadTodos, todoTurnEvent } from "./todos";
 import type { Thread } from "../protocol/v2/Thread";
 import type { Model } from "../protocol/v2/Model";
 import type { ThreadItem } from "../protocol/v2/ThreadItem";
@@ -279,6 +280,7 @@ export function addPanel() {
   persist();
 }
 export function closePanel(id: string) {
+  pauseTodos(id);
   const panels = state.panels.filter((p) => p.id !== id);
   update({
     panels,
@@ -399,6 +401,7 @@ export function applyEvent(event: WireEvent) {
   }
   if (id && deletedThreads.has(id)) return;
   if (event.method === "mosaic/disconnected") {
+    disconnectTodos();
     update({
       connection: "disconnected",
       error: "Codex 连接已断开，请重新连接。",
@@ -449,6 +452,7 @@ export function applyEvent(event: WireEvent) {
   const current = state.sessions[id] || emptySession();
   switch (event.method) {
     case "turn/started":
+      todoTurnEvent(id, p.turn, false);
       session(id, { busy: true, activeTurn: p.turn.id, error: undefined });
       break;
     case "turn/completed":
@@ -458,6 +462,7 @@ export function applyEvent(event: WireEvent) {
         approvals: [],
         error: p.turn.error?.message || undefined,
       });
+      todoTurnEvent(id, p.turn, true);
       void refreshThreads();
       break;
     case "item/started":
@@ -650,6 +655,9 @@ export async function loadThread(id: string, older = false) {
       ...(older ? { cursor: state.sessions[id]?.cursor } : {}),
     });
     const turns = [...result.data].reverse();
+    for (const turn of turns) {
+      if (turn.status !== "inProgress") todoTurnEvent(id, turn, true);
+    }
     const history = turns.flatMap((t) =>
       t.items.map((item) => itemMessage(item, t.id)),
     );
@@ -704,8 +712,10 @@ function permissions(mode: Panel["permissionMode"]) {
     },
   };
 }
-export async function send(panelId: string) {
-  const panel = state.panels.find((p) => p.id === panelId);
+export async function send(panelId: string, todo?: { text: string; attachments: Attachment[] }) {
+  if (!todo) pauseTodos(panelId);
+  const original = state.panels.find((p) => p.id === panelId);
+  const panel = original && todo ? { ...original, draft: todo.text, attachments: todo.attachments, draftSkills: [] } : original;
   if (
     !panel ||
     (!panel.draft.trim() && !panel.attachments?.length) ||
@@ -751,6 +761,7 @@ export async function send(panelId: string) {
         sandbox: access.sandbox,
       });
       id = r.thread.id;
+      bindTodoThread(panelId, id);
       patchPanel(panelId, {
         threadId: id,
         title:
@@ -794,7 +805,7 @@ export async function send(panelId: string) {
     });
     // A very fast turn may already have completed before the request returns.
     if (state.sessions[id]?.busy) session(id, { activeTurn: result.turn.id });
-    patchPanel(panelId, {
+    if (!todo) patchPanel(panelId, {
       attachments: (
         state.panels.find((p) => p.id === panelId)?.attachments || []
       ).filter(
@@ -807,14 +818,17 @@ export async function send(panelId: string) {
           : state.panels.find((p) => p.id === panelId)?.draft || "",
     });
     void refreshThreads();
+    return { turnId: result.turn.id };
   } catch (e) {
     if (id) session(id, { busy: false, error: errorText(e) });
     else update({ error: errorText(e) });
+    if (todo) throw e;
   } finally {
     sending.delete(panelId);
   }
 }
 export async function interrupt(id: string) {
+  pauseThreadTodos(id);
   if (state.sessions[id]?.stopping) return;
   session(id, { stopping: true, error: undefined });
   try {
@@ -858,6 +872,7 @@ async function stopTurn(id: string) {
 }
 
 export async function recallMessage(panelId: string, message: Message) {
+  pauseTodos(panelId);
   const panel = state.panels.find((p) => p.id === panelId);
   const id = panel?.threadId;
   if (!id || !state.sessions[id]?.writable || state.sessions[id]?.editing || sending.has(panelId)) return false;
@@ -901,6 +916,7 @@ export async function answer(
 }
 
 function forgetThread(id: string) {
+  deleteThreadTodos(id);
   deletedThreads.add(id);
   const panels = state.panels.filter((p) => p.threadId !== id);
   const sessions = { ...state.sessions };
@@ -928,6 +944,7 @@ export async function deleteThread(threadId: string, removeWorktree = false) {
   if (state.connection !== "connected") throw new Error("请先连接 Codex。");
   if (deletingThreads.has(threadId)) throw new Error("该会话正在删除中。");
   deletingThreads.add(threadId);
+  pauseThreadTodos(threadId);
   try {
     if (removeWorktree) {
       const worktree = threadWorktree(threadId);

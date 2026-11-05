@@ -38,6 +38,7 @@ import {
   type Panel,
 } from "../lib/state";
 import { AttachmentView } from "./Attachments";
+import { TodoList } from "./TodoList";
 import { ThreadContextMenu } from "./ThreadContextMenu";
 import { useComposerSuggestions } from "./ComposerSuggestions";
 import { GitEnvironment } from "./GitEnvironment";
@@ -344,6 +345,7 @@ export function ChatPanel({ panel, index, fullscreen = false, tiled = false, hid
           <IconButton label="拖动调整顺序" className="icon-button panel-drag-handle">
             <GripVertical className="panel-sort-grip" size={14} aria-hidden="true" />
           </IconButton>
+          <TodoList panel={panel} />
           <IconButton
             label="关闭此栏（不会停止任务）"
             onClick={() => closePanel(panel.id)}
