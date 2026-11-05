@@ -38,6 +38,8 @@ import {
   type Panel,
 } from "../lib/state";
 import { AttachmentView } from "./Attachments";
+import { ThreadContextMenu } from "./ThreadContextMenu";
+import { useComposerSuggestions } from "./ComposerSuggestions";
 import { GitEnvironment } from "./GitEnvironment";
 import { PermissionSelector } from "./PermissionSelector";
 import { Approval } from "./Approval";
@@ -163,6 +165,46 @@ export function ChatPanel({ panel, index, fullscreen = false, tiled = false, hid
     : emptySession();
   const fileInput = useRef<HTMLInputElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
+  const suggestions = useComposerSuggestions(panel, composer, state.connection === "connected", () => fileInput.current?.click());
+  const [composerHeight, setComposerHeight] = useState(53);
+  const composerResizeCleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => composerResizeCleanup.current?.(), []);
+  const resizeComposer = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || !composer.current) return;
+    event.preventDefault();
+    composerResizeCleanup.current?.();
+    const target = event.currentTarget;
+    const pointerId = event.pointerId;
+    const startY = event.clientY;
+    const startHeight = composer.current.getBoundingClientRect().height;
+    const maxHeight = Math.max(24, Math.min(400, window.innerHeight * 0.4));
+    const previousCursor = document.body.style.cursor;
+    const previousSelection = document.body.style.userSelect;
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+    target.dataset.resizing = "true";
+    target.setPointerCapture(pointerId);
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      setComposerHeight(Math.max(24, Math.min(maxHeight, Math.round(startHeight + startY - ev.clientY))));
+    };
+    const end = () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousSelection;
+      delete target.dataset.resizing;
+      target.removeEventListener("pointermove", move);
+      target.removeEventListener("pointerup", end);
+      target.removeEventListener("pointercancel", end);
+      target.removeEventListener("lostpointercapture", end);
+      if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+      composerResizeCleanup.current = null;
+    };
+    composerResizeCleanup.current = end;
+    target.addEventListener("pointermove", move);
+    target.addEventListener("pointerup", end);
+    target.addEventListener("pointercancel", end);
+    target.addEventListener("lostpointercapture", end);
+  };
   const [recalling, setRecalling] = useState<Message | null>(null);
   const [uploading, setUploading] = useState(false);
   const [attachmentError, setAttachmentError] = useState("");
@@ -296,7 +338,9 @@ export function ChatPanel({ panel, index, fullscreen = false, tiled = false, hid
     >
       <header className="panel-header panel-sort-header" onPointerDown={(event) => onSortStart?.(event, panel.id, panel.title)} title="拖动标题栏调整顺序，Esc 取消">
         <div className="panel-title-row">
-          <h2 title={panel.title}>{panel.title}</h2>
+          <ThreadContextMenu title={panel.title} threadId={panel.threadId} panelId={panel.id}>
+            <h2 title={panel.title} tabIndex={0}>{panel.title}</h2>
+          </ThreadContextMenu>
           <IconButton label="拖动调整顺序" className="icon-button panel-drag-handle">
             <GripVertical className="panel-sort-grip" size={14} aria-hidden="true" />
           </IconButton>
@@ -379,6 +423,25 @@ export function ChatPanel({ panel, index, fullscreen = false, tiled = false, hid
         </button>
       )}
       <footer className="composer-wrap">
+        <div
+          className="composer-resize-handle"
+          role="separator"
+          aria-label="调整输入框高度"
+          aria-orientation="horizontal"
+          aria-valuemin={24}
+          aria-valuemax={400}
+          aria-valuenow={composerHeight}
+          tabIndex={0}
+          title="上下拖动调整输入框高度，双击恢复默认高度"
+          onPointerDown={resizeComposer}
+          onDoubleClick={() => setComposerHeight(53)}
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+            event.preventDefault();
+            const height = composer.current?.getBoundingClientRect().height ?? composerHeight;
+            setComposerHeight(Math.max(24, Math.min(400, window.innerHeight * 0.4, height + (event.key === "ArrowUp" ? 20 : -20))));
+          }}
+        />
         <form
           className="composer"
           onSubmit={(e) => {
@@ -424,8 +487,10 @@ export function ChatPanel({ panel, index, fullscreen = false, tiled = false, hid
               {attachmentError}
             </p>
           )}
+          {suggestions.menu}
           <textarea
             ref={composer}
+            style={{ height: composerHeight, fontSize: Math.max(14, panel.composerFontSize ?? 14) }}
             disabled={!!session.editing}
             onPaste={(e) => {
               const files = Array.from(e.clipboardData.files);
@@ -441,7 +506,18 @@ export function ChatPanel({ panel, index, fullscreen = false, tiled = false, hid
                 : "给 Codex 一个任务…"
             }
             value={panel.draft}
-            onChange={(e) => patchPanel(panel.id, { draft: e.target.value })}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={suggestions.open}
+            aria-controls={suggestions.open ? suggestions.listId : undefined}
+            aria-activedescendant={suggestions.open ? suggestions.activeId : undefined}
+            onFocus={suggestions.onFocus}
+            onBlur={suggestions.onBlur}
+            onSelect={suggestions.onSelect}
+            onChange={(e) => {
+              suggestions.onChange(e.currentTarget);
+              patchPanel(panel.id, { draft: e.target.value });
+            }}
             onCompositionStart={() => {
               composing.current = true;
             }}
@@ -449,6 +525,7 @@ export function ChatPanel({ panel, index, fullscreen = false, tiled = false, hid
               composing.current = false;
             }}
             onKeyDown={(e) => {
+              if (!composing.current && suggestions.onKeyDown(e)) return;
               if (
                 e.key === "Enter" &&
                 !e.shiftKey &&

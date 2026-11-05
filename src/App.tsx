@@ -25,6 +25,7 @@ import {
   MIN_PANEL_WIDTH,
 } from "./lib/state";
 import { DeleteThreadButton } from "./components/DeleteThreadButton";
+import { ThreadContextMenu } from "./components/ThreadContextMenu";
 import { UsagePopover } from "./components/UsagePopover";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { ChatPanel } from "./components/ChatPanel";
@@ -144,6 +145,7 @@ export default function App() {
                         const session = state.sessions[thread.id];
                         return (
                           <div key={thread.id} className="thread-entry">
+                            <ThreadContextMenu threadId={thread.id} title={thread.name || thread.preview.slice(0, 50) || "未命名对话"}>
                             <button
                               className={`thread-row ${panel?.id === state.active ? "selected" : ""}`}
                               onClick={() => openThread(thread)}
@@ -162,6 +164,7 @@ export default function App() {
                                 <span className="approval-count">!</span>
                               ) : null}
                             </button>
+                            </ThreadContextMenu>
                             <DeleteThreadButton
                               threadId={thread.id}
                               title={

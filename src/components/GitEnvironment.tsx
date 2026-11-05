@@ -38,7 +38,6 @@ export function GitEnvironment({
       current = false;
     };
   }, [panel.cwd, panel.executionCwd]);
-  if (!info && !error) return null;
   const locked = disabled || !!panel.threadId || !!panel.executionCwd;
   const branch = panel.baseBranch || info?.branch || "HEAD";
   return (
@@ -46,8 +45,8 @@ export function GitEnvironment({
       <Popover.Trigger
         type="button"
         className={`environment-trigger ${panel.worktree ? "enabled" : ""}`}
-        aria-label="配置本地环境"
-        title="配置本地环境"
+        aria-label="对话设置"
+        title="对话设置"
       >
         <Settings size={16} />
       </Popover.Trigger>
@@ -58,7 +57,7 @@ export function GitEnvironment({
           align="end"
           sideOffset={12}
           collisionPadding={12}
-          aria-label="配置本地环境"
+          aria-label="对话设置"
         >
           {branchesOpen ? (
             <>
@@ -91,12 +90,25 @@ export function GitEnvironment({
             </>
           ) : (
             <>
+              <div className="environment-heading">输入框设置</div>
+              <label className="environment-option">
+                <span>字体大小</span>
+                <select
+                  className="composer-font-size-select"
+                  value={Math.max(14, panel.composerFontSize ?? 14)}
+                  onChange={(event) => patchPanel(panel.id, { composerFontSize: Number(event.target.value) })}
+                >
+                  {[14, 16, 18, 20, 22, 24].map((size) => (
+                    <option key={size} value={size}>{size} px{size === 14 ? "（默认）" : ""}</option>
+                  ))}
+                </select>
+              </label>
               <div className="environment-heading">配置本地环境</div>
               {error ? (
                 <p className="environment-note" role="alert">
                   {error}
                 </p>
-              ) : (
+              ) : info ? (
                 <>
                   <div className="environment-option">
                     <GitFork size={17} />
@@ -141,6 +153,8 @@ export function GitEnvironment({
                     </p>
                   )}
                 </>
+              ) : (
+                <p className="environment-note">{desktop && panel.cwd ? "正在读取本地环境…" : "选择本地项目后可配置工作树。"}</p>
               )}
             </>
           )}

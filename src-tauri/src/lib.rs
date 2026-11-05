@@ -34,6 +34,7 @@ async fn rpc(state: State<'_, AppState>, method: String, params: Value) -> Resul
         "thread/list",
         "thread/delete",
         "thread/read",
+        "thread/name/set",
         "thread/revert",
         "thread/start",
         "thread/resume",
@@ -42,6 +43,8 @@ async fn rpc(state: State<'_, AppState>, method: String, params: Value) -> Resul
         "turn/start",
         "turn/interrupt",
         "model/list",
+        "fuzzyFileSearch",
+        "skills/list",
         "account/read",
         "account/rateLimits/read",
     ];

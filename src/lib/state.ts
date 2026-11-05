@@ -55,6 +55,7 @@ export type Panel = {
   id: string;
   threadId?: string;
   title: string;
+  customTitle?: string;
   cwd: string;
   worktree?: boolean;
   baseBranch?: string;
@@ -62,6 +63,8 @@ export type Panel = {
   worktreeBranch?: string;
   width: number;
   draft: string;
+  composerFontSize?: number;
+  draftSkills?: { name: string; path: string }[];
   attachments?: Attachment[];
   model: string;
   permissionMode?: "ask" | "auto" | "full";
@@ -197,10 +200,31 @@ function session(id: string, patch: Partial<Session>) {
   });
 }
 export function patchPanel(id: string, patch: Partial<Panel>) {
+  if (patch.draft !== undefined) {
+    const skills = patch.draftSkills ?? state.panels.find((p) => p.id === id)?.draftSkills;
+    patch = { ...patch, draftSkills: skills?.filter((skill) => hasSkillToken(patch.draft!, skill.name)) };
+  }
   update({
     panels: state.panels.map((p) => (p.id === id ? { ...p, ...patch } : p)),
   });
   persist();
+}
+function hasSkillToken(draft: string, name: string) {
+  return draft.split(/\s+/).includes(`$${name}`);
+}
+export async function renameConversation(value: string, threadId?: string, panelId?: string) {
+  const name = value.trim();
+  if (!name) throw new Error("对话名称不能为空。");
+  if (threadId) {
+    await rpc("thread/name/set", { threadId, name });
+    update({
+      threads: state.threads.map((thread) => thread.id === threadId ? { ...thread, name } : thread),
+      panels: state.panels.map((panel) => panel.threadId === threadId ? { ...panel, title: name, customTitle: undefined } : panel),
+    });
+    persist();
+  } else if (panelId) {
+    patchPanel(panelId, { title: name, customTitle: name });
+  }
 }
 export function reorderPanels(ids: string[]) {
   const allowed = state.panels.filter((panel) => sameWorkspace(panel.cwd, state.cwd));
@@ -730,6 +754,7 @@ export async function send(panelId: string) {
       patchPanel(panelId, {
         threadId: id,
         title:
+          panel.customTitle ||
           panel.draft.trim().slice(0, 40) ||
           panel.attachments?.[0]?.name ||
           "附件",
@@ -743,10 +768,12 @@ export async function send(panelId: string) {
       }
       session(id, { loaded: true, writable: true, model: r.model });
     }
+    if (panel.customTitle) await renameConversation(panel.customTitle, id);
     session(id, { busy: true, error: undefined });
     const result = await rpc<TurnStartResponse>("turn/start", {
       threadId: id,
       input: [
+        ...(panel.draftSkills || []).filter((skill) => hasSkillToken(panel.draft, skill.name)).map((skill) => ({ type: "skill", name: skill.name, path: skill.path })),
         ...(panel.draft.trim()
           ? [{ type: "text", text: panel.draft.trim(), text_elements: [] }]
           : []),
